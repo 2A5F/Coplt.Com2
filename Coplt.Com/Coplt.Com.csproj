@@ -5,6 +5,10 @@
         <Version>0.1.0</Version>
         <IsPackable>true</IsPackable>
         <GeneratePackageOnBuild>True</GeneratePackageOnBuild>
+        <PackageProjectUrl>https://github.com/2A5F/Coplt.Com2</PackageProjectUrl>
+        <RepositoryUrl>https://github.com/2A5F/Coplt.Com2</RepositoryUrl>
+        <PackageReadmeFile>README.md</PackageReadmeFile>
+        <PackageLicenseFile>LICENSE.md</PackageLicenseFile>
     </PropertyGroup>
 
     <ItemGroup>
@@ -12,6 +16,14 @@
     </ItemGroup>
 
     <ItemGroup>
+        <None Include="..\LICENSE.md">
+            <Pack>True</Pack>
+            <PackagePath>/</PackagePath>
+        </None>
+        <None Include="..\README.md">
+            <Pack>True</Pack>
+            <PackagePath>/</PackagePath>
+        </None>
         <None Include="..\Coplt.Com2.Analyzer\bin\Release\netstandard2.0\Coplt.Com2.Analyzer.dll" Visible="false" Condition="'$(Configuration)' == 'Release'">
             <Pack>True</Pack>
             <PackagePath>analyzers/dotnet/cs</PackagePath>
