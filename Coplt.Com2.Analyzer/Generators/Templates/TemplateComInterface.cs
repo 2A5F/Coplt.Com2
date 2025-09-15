@@ -9,20 +9,29 @@ public class TemplateComInterface(InterfaceGenerator.Varying varying) : ATemplat
     private string DataClassName = $"__Data__{varying.GenBase.FileFullName.Replace(".", "_")}";
     private const string Unsafe = "global::System.Runtime.CompilerServices.Unsafe";
     private const string ComUtils = "global::Coplt.Com.ComUtils";
+    private const string IComInterface = "global::Coplt.Com.IComInterface";
 
     protected override void DoGenAfterUsing()
     {
         sb.AppendLine($"#pragma warning disable CS8826");
+        sb.AppendLine();
+        sb.AppendLine($"[assembly: global::Coplt.Com.MarkInterface(typeof(global::{GenBase.RawFullName}))]");
         sb.AppendLine();
     }
 
     protected override void DoGen()
     {
         sb.AppendLine(GenBase.Target.Code.Replace("partial", "unsafe partial"));
-        sb.AppendLine($"    : IComInterface, IComInterface<{varying.name}>");
+        sb.AppendLine($"    : {IComInterface}, {IComInterface}<{varying.name}>, {TypeName}.IComInterface");
+        if (!varying.isIUnknown)
+        {
+            var parent = varying.parent ?? "global::Coplt.Com.IUnknown";
+            sb.AppendLine($"    , {IComInterface}<{parent}>");
+        }
         sb.AppendLine("{");
 
         GenGuidField();
+        GenInterface();
         GenVPtr();
         GenVTable();
         GenMembers();
@@ -34,7 +43,7 @@ public class TemplateComInterface(InterfaceGenerator.Varying varying) : ATemplat
     private void GenGuidField()
     {
         sb.AppendLine();
-        sb.AppendLine($"    static ref readonly Guid IComInterface.Guid => ref {DataClassName}.Guid;");
+        sb.AppendLine($"    static ref readonly Guid {IComInterface}.Guid => ref {DataClassName}.Guid;");
     }
 
     private void GenVPtr()
@@ -43,11 +52,29 @@ public class TemplateComInterface(InterfaceGenerator.Varying varying) : ATemplat
         sb.AppendLine($"    public VirtualTable* LpVtbl;");
     }
 
+    private void GenInterface()
+    {
+        sb.AppendLine();
+        sb.AppendLine($"    public interface IComInterface");
+        sb.AppendLine($"        : {IComInterface}<{varying.name}>");
+        if (!varying.isIUnknown)
+        {
+            var parent = varying.parent ?? "global::Coplt.Com.IUnknown";
+            sb.AppendLine($"        , {parent}.IComInterface");
+        }
+        sb.AppendLine($"    ;");
+    }
+
     private void GenVTable()
     {
         sb.AppendLine();
         sb.AppendLine($"    public struct VirtualTable");
         sb.AppendLine($"    {{");
+        if (!varying.isIUnknown)
+        {
+            var parent = varying.parent ?? "global::Coplt.Com.IUnknown";
+            sb.AppendLine($"        public {parent}.VirtualTable {parent.Split('.').Last()};");
+        }
         foreach (var member in varying.members)
         {
             if (member.Kind is InterfaceGenerator.MemberKind.Method)

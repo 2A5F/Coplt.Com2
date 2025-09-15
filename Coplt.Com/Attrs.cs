@@ -25,3 +25,9 @@ public sealed class InterfaceAttribute(Type? Extend = null) : Attribute
 {
     public Type? Extend { get; } = Extend;
 }
+
+[AttributeUsage(AttributeTargets.Assembly, AllowMultiple = true)]
+public sealed class MarkInterfaceAttribute(Type Type) : Attribute
+{
+    public Type Type { get; } = Type;
+}

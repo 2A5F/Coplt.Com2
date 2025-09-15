@@ -42,6 +42,8 @@ public class InterfaceGenerator : IIncrementalGenerator
         public GenBase GenBase;
         public Guid guid;
         public string name;
+        public string? parent;
+        public bool isIUnknown;
         public ImmutableArray<Member> members;
 
         public void AddDiagnostic(Diagnostic diagnostic) => diagnostics.Value.Add(diagnostic);
@@ -93,6 +95,15 @@ public class InterfaceGenerator : IIncrementalGenerator
         var symbol = (INamedTypeSymbol)ctx.TargetSymbol;
         varying.GenBase = Utils.BuildGenBase(syntax, symbol, compilation);
         varying.name = syntax.Identifier.ToString();
+
+        varying.isIUnknown = symbol.ToDisplayString(TypeDisplayFormat) == "global::Coplt.Com.IUnknown";
+        if (attr.ConstructorArguments is [{ Value: INamedTypeSymbol parent }, ..])
+        {
+            if (!varying.isIUnknown)
+            {
+                varying.parent = parent.ToDisplayString(TypeDisplayFormat);
+            }
+        }
 
         if (symbol.TypeParameters.Length > 0)
         {

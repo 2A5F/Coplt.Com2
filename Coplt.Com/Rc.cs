@@ -5,7 +5,7 @@ using System.Runtime.InteropServices;
 namespace Coplt.Com;
 
 public unsafe struct Rc<T>(T* handle) : IEquatable<Rc<T>>, IDisposable
-    where T : struct, IComInterface<IUnknown>
+    where T : struct, IComInterface
 {
     public T* Handle = handle;
 
