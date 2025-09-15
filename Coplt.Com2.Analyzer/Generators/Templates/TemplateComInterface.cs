@@ -36,6 +36,8 @@ public class TemplateComInterface(InterfaceGenerator.Varying varying) : ATemplat
         GenVTable();
         GenMembers();
 
+        if (!varying.isIUnknown) GenIUnknown();
+
         sb.AppendLine();
         sb.AppendLine("}");
     }
@@ -200,6 +202,17 @@ public class TemplateComInterface(InterfaceGenerator.Varying varying) : ATemplat
         RefKind.RefReadOnlyParameter => "in ",
         _ => throw new ArgumentOutOfRangeException(nameof(kind), kind, null)
     };
+
+    private void GenIUnknown()
+    {
+        sb.AppendLine();
+        sb.AppendLine(
+            $"    public readonly global::Coplt.Com.HResult QueryInterface<T>(out global::Coplt.Com.Rc<T> obj) where T : struct, IComInterface<global::Coplt.Com.IUnknown>");
+        sb.AppendLine($"        => ((global::Coplt.Com.IUnknown*)global::Coplt.Com.ComUtils.AsPointer(in this))->QueryInterface(out obj);");
+        sb.AppendLine();
+        sb.AppendLine($"    public readonly global::Coplt.Com.Rc<T> TryCast<T>() where T : struct, IComInterface<global::Coplt.Com.IUnknown>");
+        sb.AppendLine($"        => ((global::Coplt.Com.IUnknown*)global::Coplt.Com.ComUtils.AsPointer(in this))->TryCast<T>();");
+    }
 
     protected override void DoGenAfterType()
     {
