@@ -1,0 +1,15 @@
+{
+  "inputs": [
+    "../../Coplt.Com/bin/Debug/net10.0/Coplt.Com.dll"
+  ],
+  "outputs": [
+    {
+      "type": "Json",
+      "path": "./define.json"
+    },
+    {
+      "type": "Cpp",
+      "path": "./headers"
+    }
+  ]
+}

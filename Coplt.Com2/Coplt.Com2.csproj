@@ -4,9 +4,13 @@
         <OutputType>Exe</OutputType>
         <RunAOTCompilation>true</RunAOTCompilation>
         <PublishAot>true</PublishAot>
+        <JsonSerializerIsReflectionEnabledByDefault>false</JsonSerializerIsReflectionEnabledByDefault>
     </PropertyGroup>
 
     <ItemGroup>
+      <PackageReference Include="AsmResolver" />
+      <PackageReference Include="AsmResolver.DotNet" />
+      <PackageReference Include="System.CommandLine" />
     </ItemGroup>
 
 </Project>
