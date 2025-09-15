@@ -1,0 +1,8 @@
+﻿{
+  "profiles": {
+    "DebugRoslynComponent for Coplt.Com": {
+      "commandName": "DebugRoslynComponent",
+      "targetProject": "..\\Coplt.Com\\Coplt.Com.csproj"
+    }
+  }
+}

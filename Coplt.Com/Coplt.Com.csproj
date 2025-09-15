@@ -1,0 +1,25 @@
+﻿<Project Sdk="Microsoft.NET.Sdk">
+
+    <PropertyGroup>
+        <NoWarn>CS8500</NoWarn>
+        <Version>0.1.0</Version>
+        <IsPackable>true</IsPackable>
+        <GeneratePackageOnBuild>True</GeneratePackageOnBuild>
+    </PropertyGroup>
+
+    <ItemGroup>
+        <ProjectReference Include="..\Coplt.Com2.Analyzer\Coplt.Com2.Analyzer.csproj" OutputItemType="Analyzer" ReferenceOutputAssembly="false"/>
+    </ItemGroup>
+
+    <ItemGroup>
+        <None Include="..\Coplt.Com2.Analyzer\bin\Release\netstandard2.0\Coplt.Com2.Analyzer.dll" Visible="false" Condition="'$(Configuration)' == 'Release'">
+            <Pack>True</Pack>
+            <PackagePath>analyzers/dotnet/cs</PackagePath>
+        </None>
+        <None Include="..\Coplt.Com2.Analyzer\bin\Release\netstandard2.0\zh-Hans\Coplt.Com2.Analyzer.resources.dll" Visible="false" Condition="'$(Configuration)' == 'Release'">
+            <Pack>True</Pack>
+            <PackagePath>analyzers/dotnet/cs/zh-Hans</PackagePath>
+        </None>
+    </ItemGroup>
+
+</Project>
