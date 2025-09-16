@@ -1,6 +1,7 @@
 ﻿using System.ComponentModel;
 using System.Diagnostics;
 using System.Diagnostics.CodeAnalysis;
+using System.Runtime.CompilerServices;
 using System.Runtime.InteropServices;
 
 namespace Coplt.Com;
@@ -24,7 +25,9 @@ public readonly record struct HResult(HRESULT Value)
 {
     public readonly HRESULT Value = Value;
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public HResult(int value) : this((HRESULT)value) { }
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public HResult(uint value) : this((HRESULT)value) { }
 
     public Exception ToException() => Marshal.GetExceptionForHR((int)Value) ?? new Win32Exception((int)Value);
@@ -38,20 +41,51 @@ public readonly record struct HResult(HRESULT Value)
 
     public override string ToString() => Marshal.GetExceptionForHR((int)Value)?.Message ?? Marshal.GetPInvokeErrorMessage((int)Value);
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static implicit operator int(HResult value) => (int)value.Value;
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static implicit operator HResult(int value) => new(value);
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static implicit operator HResult(HRESULT value) => new(value);
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static implicit operator HRESULT(HResult value) => value.Value;
 
-    public bool IsSuccess => (int)Value >= 0;
-    public bool IsFailure => (int)Value < 0;
-    public bool IsError => ((uint)Value >> 31) == 1;
+    public bool IsSuccess
+    {
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        get => (int)Value >= 0;
+    }
+    public bool IsFailure
+    {
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        get => (int)Value < 0;
+    }
+    public bool IsError
+    {
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        get => ((uint)Value >> 31) == 1;
+    }
 
-    public int Code => (int)Value & 0xFFFF;
-    public int Facility => ((int)Value >> 16) & 0x1FFF;
-    public int Severity => ((int)Value >> 31) & 1;
+    public int Code
+    {
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        get => (int)Value & 0xFFFF;
+    }
+    public int Facility
+    {
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        get => ((int)Value >> 16) & 0x1FFF;
+    }
+    public int Severity
+    {
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        get => ((int)Value >> 31) & 1;
+    }
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static bool operator true(HResult hr) => hr.IsSuccess;
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static bool operator false(HResult hr) => hr.IsFailure;
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static bool operator !(HResult hr) => hr.IsFailure;
 }

@@ -10,6 +10,8 @@ public class TemplateComInterface(InterfaceGenerator.Varying varying) : ATemplat
     private const string Unsafe = "global::System.Runtime.CompilerServices.Unsafe";
     private const string ComUtils = "global::Coplt.Com.ComUtils";
     private const string IComInterface = "global::Coplt.Com.IComInterface";
+    private const string InterfaceMember = "global::Coplt.Com.InterfaceMemberAttribute";
+    private const string AggressiveInlining = "global::System.Runtime.CompilerServices.MethodImpl(global::System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)";
 
     protected override void DoGenAfterUsing()
     {
@@ -110,11 +112,13 @@ public class TemplateComInterface(InterfaceGenerator.Varying varying) : ATemplat
 
     private void GenMembers()
     {
+        var mi = 0;
         foreach (var member in varying.members)
         {
             if (member.Kind is InterfaceGenerator.MemberKind.Method)
             {
                 sb.AppendLine();
+                sb.AppendLine($"    [{InterfaceMember}({mi++}), {AggressiveInlining}]");
                 var ro = (member.Flags & InterfaceGenerator.MemberFlags.Readonly) != 0 ? "readonly " : "";
                 var rr = RefOnRet(member.ReturnRefKind);
                 sb.Append($"    public {ro}partial {rr}{member.ReturnType} {member.Name}(");
@@ -155,17 +159,23 @@ public class TemplateComInterface(InterfaceGenerator.Varying varying) : ATemplat
             }
             else
             {
+                var nth = mi;
                 sb.AppendLine();
+                sb.AppendLine($"    [{InterfaceMember}({nth})]");
                 var rr = RefOnRet(member.ReturnRefKind);
                 sb.AppendLine($"    public partial {rr}{member.ReturnType} {member.Name}");
                 sb.AppendLine($"    {{");
                 if ((member.Flags & InterfaceGenerator.MemberFlags.Get) != 0)
                 {
+                    mi++;
                     var re = member.ReturnRefKind is RefKind.None ? "" : "ref *";
+                    sb.AppendLine($"        [{AggressiveInlining}]");
                     sb.AppendLine($"        get => {re}this.LpVtbl->get_{member.Name}(ComUtils.AsPointer(in this));");
                 }
                 if ((member.Flags & InterfaceGenerator.MemberFlags.Set) != 0)
                 {
+                    mi++;
+                    sb.AppendLine($"        [{AggressiveInlining}]");
                     sb.AppendLine($"        set => this.LpVtbl->set_{member.Name}(ComUtils.AsPointer(in this), value);");
                 }
                 sb.AppendLine($"    }}");
@@ -206,10 +216,12 @@ public class TemplateComInterface(InterfaceGenerator.Varying varying) : ATemplat
     private void GenIUnknown()
     {
         sb.AppendLine();
+        sb.AppendLine($"    [{AggressiveInlining}]");
         sb.AppendLine(
             $"    public readonly global::Coplt.Com.HResult QueryInterface<T>(out global::Coplt.Com.Rc<T> obj) where T : struct, IComInterface<global::Coplt.Com.IUnknown>");
         sb.AppendLine($"        => ((global::Coplt.Com.IUnknown*)global::Coplt.Com.ComUtils.AsPointer(in this))->QueryInterface(out obj);");
         sb.AppendLine();
+        sb.AppendLine($"    [{AggressiveInlining}]");
         sb.AppendLine($"    public readonly global::Coplt.Com.Rc<T> TryCast<T>() where T : struct, IComInterface<global::Coplt.Com.IUnknown>");
         sb.AppendLine($"        => ((global::Coplt.Com.IUnknown*)global::Coplt.Com.ComUtils.AsPointer(in this))->TryCast<T>();");
     }
@@ -225,7 +237,11 @@ public class TemplateComInterface(InterfaceGenerator.Varying varying) : ATemplat
         sb.AppendLine();
         sb.AppendLine($"    extension<T>(ref T self) where T : struct, IComInterface<{varying.name}>");
         sb.AppendLine($"    {{");
-        sb.AppendLine($"        public {varying.name}* As{varying.name} => ({varying.name}*){ComUtils}.AsPointer(in self);");
+        sb.AppendLine($"        public {varying.name}* As{varying.name}");
+        sb.AppendLine($"        {{");
+        sb.AppendLine($"            [{AggressiveInlining}]");
+        sb.AppendLine($"            get => ({varying.name}*){ComUtils}.AsPointer(in self);");
+        sb.AppendLine($"        }}");
 
         foreach (var member in varying.members)
         {
@@ -233,6 +249,7 @@ public class TemplateComInterface(InterfaceGenerator.Varying varying) : ATemplat
             {
                 sb.AppendLine();
                 var rr = RefOnRet(member.ReturnRefKind);
+                sb.AppendLine($"        [{AggressiveInlining}]");
                 sb.Append($"        public {rr}{member.ReturnType} {member.Name}(");
                 var pi = 0;
                 foreach (var param in member.Params)
@@ -262,10 +279,12 @@ public class TemplateComInterface(InterfaceGenerator.Varying varying) : ATemplat
                 if ((member.Flags & InterfaceGenerator.MemberFlags.Get) != 0)
                 {
                     var re = member.ReturnRefKind is RefKind.None ? "" : "ref *";
+                    sb.AppendLine($"            [{AggressiveInlining}]");
                     sb.AppendLine($"            get => {re}self.As{varying.name}->{member.Name};");
                 }
                 if ((member.Flags & InterfaceGenerator.MemberFlags.Set) != 0)
                 {
+                    sb.AppendLine($"            [{AggressiveInlining}]");
                     sb.AppendLine($"            set => self.As{varying.name}->{member.Name} = value;");
                 }
                 sb.AppendLine($"        }}");
@@ -288,6 +307,7 @@ public class TemplateComInterface(InterfaceGenerator.Varying varying) : ATemplat
             {
                 sb.AppendLine();
                 var rr = RefOnRet(member.ReturnRefKind);
+                sb.AppendLine($"        [{AggressiveInlining}]");
                 sb.Append($"        public {rr}{member.ReturnType} {member.Name}(");
                 var pi = 0;
                 foreach (var param in member.Params)
@@ -317,10 +337,12 @@ public class TemplateComInterface(InterfaceGenerator.Varying varying) : ATemplat
                 if ((member.Flags & InterfaceGenerator.MemberFlags.Get) != 0)
                 {
                     var re = member.ReturnRefKind is RefKind.None ? "" : "ref *";
+                    sb.AppendLine($"            [{AggressiveInlining}]");
                     sb.AppendLine($"            get => (({varying.name}*)self.Handle)->{member.Name};");
                 }
                 if ((member.Flags & InterfaceGenerator.MemberFlags.Set) != 0)
                 {
+                    sb.AppendLine($"            [{AggressiveInlining}]");
                     sb.AppendLine($"            set => (({varying.name}*)self.Handle)->{member.Name} = value;");
                 }
                 sb.AppendLine($"        }}");

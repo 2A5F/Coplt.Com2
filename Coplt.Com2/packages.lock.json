@@ -50,6 +50,9 @@
         "dependencies": {
           "AsmResolver": "5.5.1"
         }
+      },
+      "coplt.com2.definemodel": {
+        "type": "Project"
       }
     }
   }

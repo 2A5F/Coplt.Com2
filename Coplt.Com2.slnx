@@ -1,5 +1,6 @@
 ﻿<Solution>
   <Project Path="Coplt.Com2.Analyzer\Coplt.Com2.Analyzer.csproj" Type="Classic C#" />
+  <Project Path="Coplt.Com2.DefineModel\Coplt.Com2.DefineModel.csproj" Type="Classic C#" />
   <Project Path="Coplt.Com2\Coplt.Com2.csproj" Type="Classic C#" />
   <Project Path="Coplt.Com\Coplt.Com.csproj" Type="Classic C#" />
 </Solution>

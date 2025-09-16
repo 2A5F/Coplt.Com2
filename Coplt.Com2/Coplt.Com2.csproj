@@ -13,4 +13,8 @@
       <PackageReference Include="System.CommandLine" />
     </ItemGroup>
 
+    <ItemGroup>
+      <ProjectReference Include="..\Coplt.Com2.DefineModel\Coplt.Com2.DefineModel.csproj" />
+    </ItemGroup>
+
 </Project>

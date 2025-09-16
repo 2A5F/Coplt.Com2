@@ -31,3 +31,9 @@ public sealed class MarkInterfaceAttribute(Type Type) : Attribute
 {
     public Type Type { get; } = Type;
 }
+
+[AttributeUsage(AttributeTargets.Method | AttributeTargets.Property)]
+public sealed class InterfaceMemberAttribute(uint Index) : Attribute
+{
+    public uint Index { get; } = Index;
+}

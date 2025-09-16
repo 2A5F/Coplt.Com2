@@ -1,9 +1,35 @@
-﻿namespace Coplt.Com2;
+﻿using AsmResolver.DotNet;
+using AsmResolver.DotNet.Signatures.Types;
+
+namespace Coplt.Com2;
 
 public static class DefineExtractor
 {
-    public static async ValueTask Load(string path)
+    public static void Load(string path)
     {
-        return;
+        var asm = AssemblyDefinition.FromFile(path);
+        var interface_marks = asm.FindCustomAttributes("Coplt.Com", "MarkInterfaceAttribute")
+            .Select(mark => ((TypeDefOrRefSignature)mark.Signature!.FixedArguments[0].Element!).Resolve()!)
+            .ToList();
+
+        foreach (var type in interface_marks)
+        {
+            ExtraInterface(type);
+        }
+    }
+
+    public static void ExtraInterface(TypeDefinition type)
+    {
+        var name = $"{type.Name}";
+        _ = Guid.TryParse($"{type.FindCustomAttributes("System.Runtime.InteropServices", "GuidAttribute").FirstOrDefault()
+            ?.Signature!.FixedArguments[0].Element!}", out var guid);
+        foreach (var method in type.Methods)
+        {
+           var member_attr =  method.FindCustomAttributes("Coplt.Com", "InterfaceMemberAttribute").FirstOrDefault();
+           if (member_attr == null) continue;
+           var member_index = (uint)member_attr.Signature!.FixedArguments[0].Element!;
+           var member_name = $"{method.Name}";
+           
+        }
     }
 }

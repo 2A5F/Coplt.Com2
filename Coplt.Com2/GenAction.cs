@@ -20,7 +20,7 @@ public class GenAction(Option<FileInfo> ConfigPath) : AsynchronousCommandLineAct
             config = (await JsonSerializer.DeserializeAsync<Config>(config_file, ConfigLoadJsonContext.Default.Config, cancel))!;
         }
 
-        Console.WriteLine(config);
+        // Console.WriteLine(config);
 
         if (config.Inputs.Count == 0)
         {
@@ -33,10 +33,10 @@ public class GenAction(Option<FileInfo> ConfigPath) : AsynchronousCommandLineAct
             var ext = Path.GetExtension(input);
             switch (Path.GetExtension(input))
             {
-                case "dll":
-                    await DefineExtractor.Load(input);
+                case ".dll":
+                    DefineExtractor.Load(input);
                     break;
-                case "json":
+                case ".json":
                     // todo
                     break;
                 default:

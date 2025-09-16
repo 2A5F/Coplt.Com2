@@ -7,37 +7,68 @@ public unsafe struct NSpan<T> : IEquatable<NSpan<T>>
     public T* Data;
     public nuint Size;
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public NSpan(T* data, UIntPtr size)
     {
         Data = data;
         Size = size;
     }
 
-    public Span<T> AsSpan => new(Data, (int)Size);
+    public Span<T> AsSpan
+    {
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        get => new(Data, (int)Size);
+    }
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public bool Equals(NSpan<T> other) => Data == other.Data && Size == other.Size;
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public override bool Equals(object? obj) => obj is NSpan<T> other && Equals(other);
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public override int GetHashCode() => HashCode.Combine((nuint)Data, Size);
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static bool operator ==(NSpan<T> left, NSpan<T> right) => left.Equals(right);
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static bool operator !=(NSpan<T> left, NSpan<T> right) => !left.Equals(right);
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static bool operator true(NSpan<T> span) => span.Data != null;
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static bool operator false(NSpan<T> span) => span.Data == null;
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static bool operator !(NSpan<T> span) => span.Data == null;
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static implicit operator bool(NSpan<T> span) => span.Data != null;
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static implicit operator Span<T>(NSpan<T> span) => span.AsSpan;
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static implicit operator ReadOnlySpan<T>(NSpan<T> span) => span.AsSpan;
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static implicit operator NRoSpan<T>(NSpan<T> span) => new(span.Data, span.Size);
 
-    public bool IsEmpty => Size == 0;
+    public bool IsEmpty
+    {
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        get => Size == 0;
+    }
 
-    public int Length => (int)Size;
+    public int Length
+    {
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        get => (int)Size;
+    }
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public T* At(int index) => &Data[index];
 
-    public ref T this[int index] => ref Data[index];
+    public ref T this[int index]
+    {
+        [MethodImpl(MethodImplOptions.AggressiveInlining)]
+        get => ref Data[index];
+    }
 
+    [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public ref T GetPinnableReference() => ref Data[0];
 
     public override string ToString()
