@@ -338,7 +338,7 @@ public class TemplateComInterface(InterfaceGenerator.Varying varying) : ATemplat
                 {
                     var re = member.ReturnRefKind is RefKind.None ? "" : "ref *";
                     sb.AppendLine($"            [{AggressiveInlining}]");
-                    sb.AppendLine($"            get => (({varying.name}*)self.Handle)->{member.Name};");
+                    sb.AppendLine($"            get => {re}(({varying.name}*)self.Handle)->{member.Name};");
                 }
                 if ((member.Flags & InterfaceGenerator.MemberFlags.Set) != 0)
                 {

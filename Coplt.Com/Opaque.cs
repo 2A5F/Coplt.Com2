@@ -8,6 +8,3 @@ public struct Char8;
 
 [Opaque]
 public struct Char16;
-
-[Opaque]
-public struct Char32;
