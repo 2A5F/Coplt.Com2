@@ -48,6 +48,8 @@ public class GenAction(Option<FileInfo> ConfigPath) : AsynchronousCommandLineAct
             }
         }
 
+        var com_define = db.ToComDefine();
+
         return await Task.FromResult(0);
     }
 }

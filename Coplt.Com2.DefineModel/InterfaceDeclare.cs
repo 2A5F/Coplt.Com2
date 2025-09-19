@@ -8,7 +8,7 @@ public struct InterfaceDeclare
     public required string Name { get; set; }
     public required Guid Guid { get; set; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public uint? Parent { get; set; }
+    public Guid? Parent { get; set; }
     public required ImmutableArray<MethodDeclare> Methods { get; set; }
 }
 

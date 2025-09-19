@@ -1,9 +1,11 @@
-﻿namespace Coplt.Com2.DefineModel;
+﻿using System.Collections.Immutable;
 
-public record ComDefine
+namespace Coplt.Com2.DefineModel;
+
+public record struct ComDefine
 {
-    public required List<TypeDeclare> Types { get; set; }
-    public required List<StructDeclare> Structs { get; set; }
-    public required List<EnumDeclare> Enums { get; set; }
-    public required List<InterfaceDeclare> Interfaces { get; set; }
+    public required ImmutableArray<TypeDeclare> Types { get; set; }
+    public required ImmutableArray<StructDeclare> Structs { get; set; }
+    public required ImmutableArray<EnumDeclare> Enums { get; set; }
+    public required ImmutableArray<InterfaceDeclare> Interfaces { get; set; }
 }

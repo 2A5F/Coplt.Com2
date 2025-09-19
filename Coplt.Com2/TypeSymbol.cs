@@ -5,6 +5,7 @@ using AsmResolver.DotNet;
 using AsmResolver.DotNet.Collections;
 using AsmResolver.DotNet.Signatures.Types;
 using AsmResolver.PE.DotNet.Metadata.Tables.Rows;
+using Coplt.Com2.DefineModel;
 
 namespace Coplt.Com2.Symbols;
 
@@ -15,6 +16,7 @@ internal class SymbolDb
     public ConcurrentDictionary<string, EnumDeclareSymbol> Enums { get; } = new();
     public ConcurrentDictionary<string, InterfaceDeclareSymbol> Interfaces { get; } = new();
 
+    public static readonly FrozenDictionary<string, TypeSymbol> StaticSymbols;
     public static readonly FrozenDictionary<string, ComType> ComTypes;
 
     static SymbolDb()
@@ -27,33 +29,32 @@ internal class SymbolDb
             { "Coplt.Com.ConstNonNull`1", ComType.ConstNonNull },
         };
         ComTypes = com_types.ToFrozenDictionary();
+
+        Dictionary<string, TypeSymbol> dict = new();
+        TryAddSymbol(dict, new("Coplt.Com.HResult") { Kind = TypeKind.HResult });
+        TryAddSymbol(dict, new("System.Void") { Kind = TypeKind.Void });
+        TryAddSymbol(dict, new("System.Boolean") { Kind = TypeKind.Bool });
+        TryAddSymbol(dict, new("System.Byte") { Kind = TypeKind.UInt8 });
+        TryAddSymbol(dict, new("System.UInt16") { Kind = TypeKind.UInt16 });
+        TryAddSymbol(dict, new("System.UInt32") { Kind = TypeKind.UInt32 });
+        TryAddSymbol(dict, new("System.UInt64") { Kind = TypeKind.UInt64 });
+        TryAddSymbol(dict, new("System.UInt128") { Kind = TypeKind.UInt128 });
+        TryAddSymbol(dict, new("System.UIntPtr") { Kind = TypeKind.UIntPtr });
+        TryAddSymbol(dict, new("System.SByte") { Kind = TypeKind.Int8 });
+        TryAddSymbol(dict, new("System.Int16") { Kind = TypeKind.Int16 });
+        TryAddSymbol(dict, new("System.Int32") { Kind = TypeKind.Int32 });
+        TryAddSymbol(dict, new("System.Int64") { Kind = TypeKind.Int64 });
+        TryAddSymbol(dict, new("System.Int128") { Kind = TypeKind.Int128 });
+        TryAddSymbol(dict, new("System.IntPtr") { Kind = TypeKind.IntPtr });
+        TryAddSymbol(dict, new("System.Single") { Kind = TypeKind.Float });
+        TryAddSymbol(dict, new("System.Double") { Kind = TypeKind.Double });
+        TryAddSymbol(dict, new("System.Char") { Kind = TypeKind.Char16 });
+        TryAddSymbol(dict, new("System.Guid") { Kind = TypeKind.Guid });
+        StaticSymbols = dict.ToFrozenDictionary();
     }
 
-    public SymbolDb()
-    {
-        TryAddSymbol(new("Coplt.Com.HResult") { Kind = TypeKind.HResult });
-        TryAddSymbol(new("System.Void") { Kind = TypeKind.Void });
-        TryAddSymbol(new("System.Boolean") { Kind = TypeKind.Bool });
-        TryAddSymbol(new("System.Byte") { Kind = TypeKind.UInt8 });
-        TryAddSymbol(new("System.UInt16") { Kind = TypeKind.UInt16 });
-        TryAddSymbol(new("System.UInt32") { Kind = TypeKind.UInt32 });
-        TryAddSymbol(new("System.UInt64") { Kind = TypeKind.UInt64 });
-        TryAddSymbol(new("System.UInt128") { Kind = TypeKind.UInt128 });
-        TryAddSymbol(new("System.UIntPtr") { Kind = TypeKind.UIntPtr });
-        TryAddSymbol(new("System.SByte") { Kind = TypeKind.Int8 });
-        TryAddSymbol(new("System.Int16") { Kind = TypeKind.Int16 });
-        TryAddSymbol(new("System.Int32") { Kind = TypeKind.Int32 });
-        TryAddSymbol(new("System.Int64") { Kind = TypeKind.Int64 });
-        TryAddSymbol(new("System.Int128") { Kind = TypeKind.Int128 });
-        TryAddSymbol(new("System.IntPtr") { Kind = TypeKind.IntPtr });
-        TryAddSymbol(new("System.Single") { Kind = TypeKind.Float });
-        TryAddSymbol(new("System.Double") { Kind = TypeKind.Double });
-        TryAddSymbol(new("System.Char") { Kind = TypeKind.Char16 });
-        TryAddSymbol(new("System.Guid") { Kind = TypeKind.Guid });
-    }
+    private static void TryAddSymbol(Dictionary<string, TypeSymbol> dict, TypeSymbol symbol) => dict.TryAdd(symbol.FullName, symbol);
 
-    private void TryAddSymbol(TypeSymbol symbol) => Symbols.TryAdd(symbol.FullName, symbol);
-    
     public void Load(string path)
     {
         var asm = AssemblyDefinition.FromFile(path);
@@ -65,6 +66,126 @@ internal class SymbolDb
         {
             ExtraInterface(type, true);
         }
+    }
+
+    public ComDefine ToComDefine()
+    {
+        #region Types Tmp
+
+        var types_tmp = Symbols
+            .AsParallel()
+            .OrderBy(a => a.Key, StringComparer.Ordinal)
+            .Select(a => a.Value)
+            .Select((a, i) =>
+            {
+                a.Id = (uint)i;
+                return a;
+            })
+            .ToList();
+
+        #endregion
+
+        #region Interface
+
+        var interfaces = Interfaces
+            .AsParallel()
+            .Where(a => a.Value.Export)
+            .OrderBy(a => a.Key, StringComparer.Ordinal)
+            .Select(a => a.Value)
+            .Select(a => new InterfaceDeclare
+            {
+                Name = a.Name,
+                Guid = a.Guid,
+                Parent = null, // todo
+                Methods =
+                [
+                    ..a.Methods.Select(m => new MethodDeclare
+                    {
+                        Name = m.Name,
+                        Index = m.Index,
+                        Flags = ToComDefine(m.Flags),
+                        ReturnType = m.ReturnType.Id,
+                        Parameters =
+                        [
+                            ..m.Params.Select(p => new ParameterDeclare
+                            {
+                                Name = p.Name,
+                                Flags = ToComParam(p.Flags),
+                                Type = p.Type.Id,
+                            })
+                        ],
+                    })
+                ],
+            })
+            .ToImmutableArray();
+
+        #endregion
+
+        #region Types
+
+        var types = types_tmp.AsParallel().AsOrdered().Select(a =>
+        {
+            switch (a.Kind)
+            {
+                case TypeKind.Generic:
+                case TypeKind.Struct:
+                case TypeKind.Enum:
+                    throw new NotImplementedException();
+                case TypeKind.Ptr:
+                    return new TypeDeclare
+                    {
+                        Kind = DefineModel.TypeKind.Ptr,
+                        Index = a.TargetOrReturn!.Id,
+                        Flags = ToComDefine(a.Flags),
+                    };
+                case TypeKind.Fn:
+                    throw new NotImplementedException();
+                default:
+                    return new TypeDeclare
+                    {
+                        Kind = a.Kind switch
+                        {
+                            TypeKind.Void => DefineModel.TypeKind.Void,
+                            TypeKind.Bool => DefineModel.TypeKind.Bool,
+                            TypeKind.Int8 => DefineModel.TypeKind.Int8,
+                            TypeKind.Int16 => DefineModel.TypeKind.Int16,
+                            TypeKind.Int32 => DefineModel.TypeKind.Int32,
+                            TypeKind.Int64 => DefineModel.TypeKind.Int64,
+                            TypeKind.Int128 => DefineModel.TypeKind.Int128,
+                            TypeKind.IntPtr => DefineModel.TypeKind.IntPtr,
+                            TypeKind.UInt8 => DefineModel.TypeKind.UInt8,
+                            TypeKind.UInt16 => DefineModel.TypeKind.UInt16,
+                            TypeKind.UInt32 => DefineModel.TypeKind.UInt32,
+                            TypeKind.UInt64 => DefineModel.TypeKind.UInt64,
+                            TypeKind.UInt128 => DefineModel.TypeKind.UInt128,
+                            TypeKind.UIntPtr => DefineModel.TypeKind.UIntPtr,
+                            TypeKind.Float => DefineModel.TypeKind.Float,
+                            TypeKind.Double => DefineModel.TypeKind.Double,
+                            TypeKind.Char8 => DefineModel.TypeKind.Char8,
+                            TypeKind.Char16 => DefineModel.TypeKind.Char16,
+                            TypeKind.Guid => DefineModel.TypeKind.Guid,
+                            TypeKind.HResult => DefineModel.TypeKind.HResult,
+                            TypeKind.NSpan => DefineModel.TypeKind.NSpan,
+                            TypeKind.NRoSpan => DefineModel.TypeKind.NRoSpan,
+                            TypeKind.Str8 => DefineModel.TypeKind.Str8,
+                            TypeKind.Str16 => DefineModel.TypeKind.Str16,
+                            TypeKind.StrAny => DefineModel.TypeKind.StrAny,
+                            _ => throw new ArgumentOutOfRangeException()
+                        },
+                        Flags = ToComDefine(a.Flags),
+                    };
+            }
+        }).ToImmutableArray();
+
+        #endregion
+
+        return new()
+        {
+            Types = types,
+            Structs = [],
+            Enums = [],
+            Interfaces = interfaces,
+        };
     }
 
     public InterfaceDeclareSymbol ExtraInterface(TypeDefinition type, bool export)
@@ -129,14 +250,14 @@ internal class SymbolDb
     private TypeSymbol ExtraType(TypeDefinition type)
     {
         var full_name = type.FullName;
-        var symbol = Symbols.GetOrAdd(full_name, name => new(name));
+        var symbol = Symbols.GetOrAdd(full_name, name => StaticSymbols.TryGetValue(name, out var r) ? r : new(name));
         if (symbol.Kind != TypeKind.Unknown) return symbol;
         // init symbol
         throw new NotImplementedException("Unknown type");
         return null!;
     }
 
-    public TypeSymbol ExtraType(TypeSignature type)
+    private TypeSymbol ExtraType(TypeSignature type)
     {
         switch (type)
         {
@@ -179,7 +300,7 @@ internal class SymbolDb
         return null!;
     }
 
-    public TypeSymbol ExtraType(Parameter parameter)
+    private TypeSymbol ExtraType(Parameter parameter)
     {
         var com_type = parameter.Definition?.FindCustomAttributesNoGeneric("Coplt.Com", "ComTypeAttribute`1").FirstOrDefault();
         if (com_type != null)
@@ -190,10 +311,33 @@ internal class SymbolDb
         }
         return ExtraType(parameter.ParameterType);
     }
+
+    private static DefineModel.TypeFlags ToComDefine(TypeFlags input)
+    {
+        var output = DefineModel.TypeFlags.None;
+        if ((input & TypeFlags.Const) != 0) output |= DefineModel.TypeFlags.Const;
+        return output;
+    }
+    private static DefineModel.MethodFlags ToComDefine(MethodFlags input)
+    {
+        var output = DefineModel.MethodFlags.None;
+        if ((input & MethodFlags.Const) != 0) output |= DefineModel.MethodFlags.Const;
+        if ((input & MethodFlags.ReturnByRef) != 0) output |= DefineModel.MethodFlags.ReturnByRef;
+        return output;
+    }
+
+    private static ParameterFlags ToComParam(ParamFlags input)
+    {
+        var output = ParameterFlags.None;
+        if ((input & ParamFlags.In) != 0) output |= ParameterFlags.In;
+        if ((input & ParamFlags.Out) != 0) output |= ParameterFlags.Out;
+        return output;
+    }
 }
 
 public record TypeSymbol(string FullName)
 {
+    public uint Id { get; set; }
     public string FullName { get; } = FullName;
     public string Name { get; } = FullName.Split('.', '+').Last();
     public TypeKind Kind { get; set; }
@@ -273,6 +417,7 @@ public record ADeclareSymbol
 
 public record InterfaceDeclareSymbol : ADeclareSymbol
 {
+    public uint Id { get; set; }
     public required bool Export { get; set; }
     public required Guid Guid { get; set; }
     public required List<InterfaceMethod> Methods { get; set; }
