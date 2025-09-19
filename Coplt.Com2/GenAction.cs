@@ -1,6 +1,7 @@
 ﻿using System.CommandLine;
 using System.CommandLine.Invocation;
 using System.Text.Json;
+using Coplt.Com2.Symbols;
 
 namespace Coplt.Com2;
 
@@ -28,13 +29,15 @@ public class GenAction(Option<FileInfo> ConfigPath) : AsynchronousCommandLineAct
             return -1;
         }
 
+        var db = new SymbolDb();
+
         foreach (var input in config.Inputs)
         {
             var ext = Path.GetExtension(input);
             switch (Path.GetExtension(input))
             {
                 case ".dll":
-                    DefineExtractor.Load(input);
+                    db.Load(input);
                     break;
                 case ".json":
                     // todo

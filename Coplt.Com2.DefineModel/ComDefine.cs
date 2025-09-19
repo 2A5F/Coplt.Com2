@@ -2,5 +2,8 @@
 
 public record ComDefine
 {
-    public List<ADeclare> Declares { get; set; } = [];
+    public required List<TypeDeclare> Types { get; set; }
+    public required List<StructDeclare> Structs { get; set; }
+    public required List<EnumDeclare> Enums { get; set; }
+    public required List<InterfaceDeclare> Interfaces { get; set; }
 }
