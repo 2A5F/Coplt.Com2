@@ -192,7 +192,13 @@ internal class SymbolDb
                         Flags = ToComDefine(a.Flags),
                     };
                 case TypeKind.Fn:
-                    throw new NotImplementedException();
+                    return new TypeDeclare
+                    {
+                        Kind = DefineModel.TypeKind.Fn,
+                        Flags = ToComDefine(a.Flags),
+                        Index = a.TargetOrReturn!.Id,
+                        Params = [..a.GenericsOrParams.Select(static a => a.Id)],
+                    };
                 default:
                     return new TypeDeclare
                     {
@@ -525,6 +531,16 @@ internal class SymbolDb
                 symbol.Index = (uint)gp.Index;
                 return symbol;
             }
+            case FunctionPointerTypeSignature fpt:
+            {
+                var symbol = Symbols.GetOrAdd($"*::{fpt.FullName}*", name => new(name));
+                if (symbol.Kind != TypeKind.Unknown) return symbol;
+                symbol.Kind = TypeKind.Fn;
+                var sig = fpt.Signature;
+                symbol.TargetOrReturn = ExtraType(sig.ReturnType);
+                symbol.GenericsOrParams = [..sig.ParameterTypes.Select(ExtraType)];
+                return symbol;
+            }
         }
         throw new NotSupportedException($"Unknown type: {type}");
     }
@@ -619,7 +635,7 @@ public enum TypeKind
     Enum,
     // use Target
     Ptr,
-    // use Return Params
+    // use Return, Params
     Fn,
 
     Void,

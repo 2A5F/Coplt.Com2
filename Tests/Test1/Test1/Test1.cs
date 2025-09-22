@@ -27,6 +27,8 @@ public unsafe partial struct ITest2
 public unsafe partial struct ITest3
 {
     public partial Struct2<int>* Some1(Struct1 a, Enum1 b, Enum2 c);
+    
+    public partial void FnPtr(delegate* unmanaged[Cdecl]<int, int, int> fn);
 }
 
 [StructLayout(LayoutKind.Explicit)]
