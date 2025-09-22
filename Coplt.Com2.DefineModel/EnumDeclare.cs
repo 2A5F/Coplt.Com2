@@ -1,10 +1,12 @@
 ﻿using System.Collections.Immutable;
+using System.Text.Json.Serialization;
 
 namespace Coplt.Com2.DefineModel;
 
 public record struct EnumDeclare
 {
     public required string Name { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public required EnumFlags Flags { get; set; }
     /// <summary>
     /// Index of type
@@ -23,5 +25,5 @@ public enum EnumFlags
 public record struct EnumItemDeclare
 {
     public string Name { get; set; }
-    public Int128 Value { get; set; }
+    public long Value { get; set; }
 }

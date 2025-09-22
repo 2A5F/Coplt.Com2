@@ -13,12 +13,47 @@ public unsafe partial struct ITest1
 public unsafe partial struct ITest2
 {
     public readonly partial uint Sub(uint a, uint b);
-    
+
     public readonly partial uint Foo { get; set; }
-    
+
     public readonly partial uint Foo2 { get; }
-    
+
     public readonly partial uint Foo3 { set; }
 
     public partial void Some();
+}
+
+[Interface(typeof(ITest2)), Guid("e785d2ba-cc37-48c6-b2fb-f253a21d0431")]
+public unsafe partial struct ITest3
+{
+    public partial Struct2<int>* Some1(Struct1 a, Enum1 b, Enum2 c);
+}
+
+[StructLayout(LayoutKind.Explicit)]
+public struct Struct1
+{
+    [FieldOffset(0)]
+    public int a;
+}
+
+public enum Enum1
+{
+    A,
+    B,
+    C,
+}
+
+[RefOnly]
+public struct Struct2<T>
+{
+    public T a;
+}
+
+[Flags]
+public enum Enum2
+{
+    None = 0,
+    A = 1 << 0,
+    B = 1 << 1,
+    C = 1 << 2,
 }

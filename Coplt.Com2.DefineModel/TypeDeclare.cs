@@ -11,7 +11,7 @@ public record struct TypeDeclare
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public TypeFlags Flags { get; set; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public ImmutableArray<uint>? Params { get; set; }
+    public ImmutableArray<uint> Params { get; set; }
 }
 
 public enum TypeKind : uint

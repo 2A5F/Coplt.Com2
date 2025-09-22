@@ -1,14 +1,110 @@
 {
   "types": [
     {
+      "kind": "Generic",
+      "index": 0
+    },
+    {
+      "kind": "Int32"
+    },
+    {
       "kind": "UInt32"
     },
     {
       "kind": "Void"
+    },
+    {
+      "kind": "Enum",
+      "index": 0
+    },
+    {
+      "kind": "Enum",
+      "index": 1
+    },
+    {
+      "kind": "Struct",
+      "index": 0
+    },
+    {
+      "kind": "Struct",
+      "index": 1,
+      "params": [
+        1
+      ]
+    },
+    {
+      "kind": "Ptr",
+      "index": 7
     }
   ],
-  "structs": [],
-  "enums": [],
+  "enums": [
+    {
+      "name": "Enum1",
+      "underlying": 1,
+      "items": [
+        {
+          "name": "A",
+          "value": 0
+        },
+        {
+          "name": "B",
+          "value": 1
+        },
+        {
+          "name": "C",
+          "value": 2
+        }
+      ]
+    },
+    {
+      "name": "Enum2",
+      "flags": "Flags",
+      "underlying": 1,
+      "items": [
+        {
+          "name": "None",
+          "value": 0
+        },
+        {
+          "name": "A",
+          "value": 1
+        },
+        {
+          "name": "B",
+          "value": 2
+        },
+        {
+          "name": "C",
+          "value": 4
+        }
+      ]
+    }
+  ],
+  "structs": [
+    {
+      "name": "Struct1",
+      "flags": "Union",
+      "fields": [
+        {
+          "type": 1,
+          "name": "a"
+        }
+      ]
+    },
+    {
+      "name": "Struct2",
+      "flags": "RefOnly",
+      "type_params": [
+        "T"
+      ],
+      "fields": [
+        {
+          "type": 0,
+          "name": "a"
+        }
+      ]
+    }
+  ],
   "interfaces": [
     {
       "name": "ITest1",
@@ -18,15 +114,15 @@
           "name": "Add",
           "index": 0,
           "flags": "Const",
-          "return_type": 0,
+          "return_type": 2,
           "parameters": [
             {
               "name": "a",
-              "type": 0
+              "type": 2
             },
             {
               "name": "b",
-              "type": 0
+              "type": 2
             }
           ]
         }
@@ -41,15 +137,15 @@
           "name": "Sub",
           "index": 0,
           "flags": "Const",
-          "return_type": 0,
+          "return_type": 2,
           "parameters": [
             {
               "name": "a",
-              "type": 0
+              "type": 2
             },
             {
               "name": "b",
-              "type": 0
+              "type": 2
             }
           ]
         },
@@ -57,18 +153,18 @@
           "name": "get_Foo",
           "index": 1,
           "flags": "Const, Getter",
-          "return_type": 0,
+          "return_type": 2,
           "parameters": []
         },
         {
           "name": "set_Foo",
           "index": 2,
           "flags": "Const, Setter",
-          "return_type": 1,
+          "return_type": 3,
           "parameters": [
             {
               "name": "value",
-              "type": 0
+              "type": 2
             }
           ]
         },
@@ -76,26 +172,52 @@
           "name": "get_Foo2",
           "index": 3,
           "flags": "Const, Getter",
-          "return_type": 0,
+          "return_type": 2,
           "parameters": []
         },
         {
           "name": "set_Foo3",
           "index": 4,
           "flags": "Const, Setter",
-          "return_type": 1,
+          "return_type": 3,
           "parameters": [
             {
               "name": "value",
-              "type": 0
+              "type": 2
             }
           ]
         },
         {
           "name": "Some",
           "index": 5,
-          "return_type": 1,
+          "return_type": 3,
           "parameters": []
+        }
+      ]
+    },
+    {
+      "name": "ITest3",
+      "guid": "e785d2ba-cc37-48c6-b2fb-f253a21d0431",
+      "parent": "e6ea2c14-564f-47f8-9a62-7a55446c1438",
+      "methods": [
+        {
+          "name": "Some1",
+          "index": 0,
+          "return_type": 8,
+          "parameters": [
+            {
+              "name": "a",
+              "type": 6
+            },
+            {
+              "name": "b",
+              "type": 4
+            },
+            {
+              "name": "c",
+              "type": 5
+            }
+          ]
         }
       ]
     }

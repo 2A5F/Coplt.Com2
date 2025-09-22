@@ -18,7 +18,7 @@ public enum StructFlags
 {
     None,
     Union = 1 << 0,
-    ByRef = 1 << 1,
+    RefOnly = 1 << 1,
 }
 
 public record struct FieldDeclare

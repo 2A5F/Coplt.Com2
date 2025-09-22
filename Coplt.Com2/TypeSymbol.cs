@@ -90,6 +90,36 @@ internal class SymbolDb
 
         #endregion
 
+        #region Struct Tmp
+
+        var struct_tmp = Structs
+            .AsParallel()
+            .OrderBy(a => a.Key, StringComparer.Ordinal)
+            .Select(a => a.Value)
+            .Select((a, i) =>
+            {
+                a.Id = (uint)i;
+                return a;
+            })
+            .ToList();
+
+        #endregion
+
+        #region Enum Tmp
+
+        var enum_tmp = Enums
+            .AsParallel()
+            .OrderBy(a => a.Key, StringComparer.Ordinal)
+            .Select(a => a.Value)
+            .Select((a, i) =>
+            {
+                a.Id = (uint)i;
+                return a;
+            })
+            .ToList();
+
+        #endregion
+
         #region Interface
 
         var interfaces = Interfaces
@@ -133,9 +163,27 @@ internal class SymbolDb
             switch (a.Kind)
             {
                 case TypeKind.Generic:
+                    return new TypeDeclare
+                    {
+                        Kind = DefineModel.TypeKind.Generic,
+                        Index = a.Index,
+                        Flags = ToComDefine(a.Flags),
+                    };
                 case TypeKind.Struct:
+                    return new TypeDeclare
+                    {
+                        Kind = DefineModel.TypeKind.Struct,
+                        Index = a.Declare!.Id,
+                        Flags = ToComDefine(a.Flags),
+                        Params = a.GenericsOrParams.IsDefaultOrEmpty ? default : [..a.GenericsOrParams.Select(static a => a.Id)],
+                    };
                 case TypeKind.Enum:
-                    throw new NotImplementedException();
+                    return new TypeDeclare
+                    {
+                        Kind = DefineModel.TypeKind.Enum,
+                        Index = a.Declare!.Id,
+                        Flags = ToComDefine(a.Flags),
+                    };
                 case TypeKind.Ptr:
                     return new TypeDeclare
                     {
@@ -184,11 +232,52 @@ internal class SymbolDb
 
         #endregion
 
+        #region Structs
+
+        var structs = struct_tmp.AsParallel().AsOrdered()
+            .Select(a => new StructDeclare
+            {
+                Name = a.Name.Split('.', '+').Last().Split('`').First(),
+                Flags = ToComDefine(a.Flags),
+                TypeParams = a.TypeParams.Count == 0 ? default : [..a.TypeParams],
+                Fields =
+                [
+                    ..a.Fields.Select(f => new FieldDeclare
+                    {
+                        Type = f.Type.Id,
+                        Name = f.Name,
+                    })
+                ],
+            }).ToImmutableArray();
+
+        #endregion
+
+        #region Enums
+
+        var enums = enum_tmp.AsParallel().AsOrdered()
+            .Select(a => new EnumDeclare
+            {
+                Name = a.Name.Split('.', '+').Last(),
+                Flags = ToComDefine(a.Flags),
+                Underlying = a.UnderlyingType.Id,
+                Items =
+                [
+                    ..a.Items.Select(f => new EnumItemDeclare
+                    {
+                        Name = f.Name,
+                        Value = f.Value,
+                    })
+                ]
+            })
+            .ToImmutableArray();
+
+        #endregion
+
         return new()
         {
             Types = types,
-            Structs = [],
-            Enums = [],
+            Structs = structs,
+            Enums = enums,
             Interfaces = interfaces,
         };
     }
@@ -280,7 +369,6 @@ internal class SymbolDb
                     ],
                 });
             }
-            // todo set
         }
         methods.Sort((a, b) => a.Index.CompareTo(b.Index));
         var r = Interfaces.AddOrUpdate(name,
@@ -308,14 +396,75 @@ internal class SymbolDb
         return ParamFlags.None;
     }
 
+    private ADeclareSymbol ExtraDeclare(TypeDefinition type)
+    {
+        var full_name = type.FullName;
+        if (type.IsEnum)
+        {
+            var decl = Enums.GetOrAdd(full_name, _ => new()
+            {
+                Name = null!,
+                Flags = EnumFlags.None,
+                UnderlyingType = null!,
+                Items = []
+            });
+            if (decl.Name != null!) return decl;
+            decl.Name = full_name;
+            decl.UnderlyingType = ExtraType(type.GetEnumUnderlyingType()!);
+            if (type.FindCustomAttributes("System", "FlagsAttribute").Any()) decl.Flags |= EnumFlags.Flags;
+            foreach (var field in type.Fields)
+            {
+                var attr = field.Attributes;
+                const FieldAttributes fa = FieldAttributes.Static | FieldAttributes.Literal;
+                if ((attr & fa) != fa) continue;
+                var val = (long)Convert.ChangeType(field.Constant!.Value!.InterpretData(field.Constant.Type), typeof(long));
+                decl.Items.Add(new()
+                {
+                    Value = val,
+                    Name = $"{field.Name}",
+                });
+            }
+            return decl;
+        }
+        else
+        {
+            var decl = Structs.GetOrAdd(full_name, _ => new()
+            {
+                Name = null!,
+                Flags = StructFlags.None,
+                TypeParams = [],
+                Fields = [],
+            });
+            if (decl.Name != null!) return decl;
+            decl.Name = full_name;
+            decl.TypeParams = type.GenericParameters.Select(a => $"{a.Name}").ToList();
+            if ((type.Attributes & TypeAttributes.ExplicitLayout) != 0) decl.Flags |= StructFlags.Union;
+            if (type.FindCustomAttributes("Coplt.Com", "RefOnlyAttribute").Any()) decl.Flags |= StructFlags.RefOnly;
+            foreach (var field in type.Fields)
+            {
+                if ((field.Attributes & FieldAttributes.Static) != 0) continue;
+                var sig = field.Signature!;
+                var ft = ExtraType(sig.FieldType);
+                decl.Fields.Add(new()
+                {
+                    Type = ft,
+                    Name = $"{field.Name}",
+                });
+            }
+            return decl;
+        }
+    }
+
     private TypeSymbol ExtraType(TypeDefinition type)
     {
         var full_name = type.FullName;
+        if (!type.IsValueType) throw new NotSupportedException($"Reference type is not support: {type}");
+        if (type.IsByRefLike) throw new NotSupportedException($"ByRef type is not support: {type}");
         var symbol = Symbols.GetOrAdd(full_name, name => StaticSymbols.TryGetValue(name, out var r) ? r : new(name));
         if (symbol.Kind != TypeKind.Unknown) return symbol;
-        // init symbol
-        throw new NotImplementedException("Unknown type");
-        return null!;
+        symbol.Kind = type.IsEnum ? TypeKind.Enum : TypeKind.Struct;
+        symbol.Declare = ExtraDeclare(type);
+        return symbol;
     }
 
     private TypeSymbol ExtraType(TypeSignature type)
@@ -341,7 +490,7 @@ internal class SymbolDb
                 var gt = git.GenericType;
                 if (ComTypes.TryGetValue(gt.FullName, out var com_type))
                 {
-                    if (com_type == ComType.Unknown) throw new NotSupportedException($"Unknown type: {type}");
+                    if (com_type == ComType.Unknown) break;
                     if (com_type is ComType.Ptr or ComType.ConstPtr)
                     {
                         var target = ExtraType(git.TypeArguments[0]);
@@ -353,12 +502,31 @@ internal class SymbolDb
                         return symbol;
                     }
                 }
-                throw new NotImplementedException($"Unknown type: {type}");
+                if (gt is TypeDefinition td)
+                {
+                    var decl = ExtraDeclare(td);
+                    var args = git.TypeArguments.Select(ExtraType).ToImmutableArray();
+                    var name = $"{decl.Name}<{string.Join(", ", args.Select(a => a.FullName))}>";
+                    var symbol = Symbols.GetOrAdd(name, static name => new(name));
+                    if (symbol.Kind != TypeKind.Unknown) return symbol;
+                    symbol.Kind = TypeKind.Struct;
+                    symbol.Declare = decl;
+                    symbol.GenericsOrParams = args;
+                    return symbol;
+                }
+                break;
             }
-            default:
-                throw new NotImplementedException($"Unknown type: {type}");
+            case GenericParameterSignature gp:
+            {
+                var name = $"<>::{gp.Name}";
+                var symbol = Symbols.GetOrAdd(name, static name => new(name));
+                if (symbol.Kind != TypeKind.Unknown) return symbol;
+                symbol.Kind = TypeKind.Generic;
+                symbol.Index = (uint)gp.Index;
+                return symbol;
+            }
         }
-        return null!;
+        throw new NotSupportedException($"Unknown type: {type}");
     }
 
     private TypeSymbol ExtraType(Parameter parameter)
@@ -386,6 +554,21 @@ internal class SymbolDb
         if ((input & MethodFlags.ReturnByRef) != 0) output |= DefineModel.MethodFlags.ReturnByRef;
         if ((input & MethodFlags.Getter) != 0) output |= DefineModel.MethodFlags.Getter;
         if ((input & MethodFlags.Setter) != 0) output |= DefineModel.MethodFlags.Setter;
+        return output;
+    }
+
+    private static DefineModel.StructFlags ToComDefine(StructFlags input)
+    {
+        var output = DefineModel.StructFlags.None;
+        if ((input & StructFlags.Union) != 0) output |= DefineModel.StructFlags.Union;
+        if ((input & StructFlags.RefOnly) != 0) output |= DefineModel.StructFlags.RefOnly;
+        return output;
+    }
+
+    private static DefineModel.EnumFlags ToComDefine(EnumFlags input)
+    {
+        var output = DefineModel.EnumFlags.None;
+        if ((input & EnumFlags.Flags) != 0) output |= DefineModel.EnumFlags.Flags;
         return output;
     }
 
@@ -430,9 +613,9 @@ public enum TypeKind
 
     // use Index
     Generic,
-    // use Declare
-    Struct,
     // use Declare, Generics
+    Struct,
+    // use Declare
     Enum,
     // use Target
     Ptr,
@@ -475,12 +658,12 @@ public enum TypeFlags
 
 public record ADeclareSymbol
 {
+    public uint Id { get; set; }
     public required string Name { get; set; }
 }
 
 public record InterfaceDeclareSymbol : ADeclareSymbol
 {
-    public uint Id { get; set; }
     public required bool Export { get; set; }
     public required Guid Guid { get; set; }
     public InterfaceDeclareSymbol? Parent { get; set; }
@@ -558,6 +741,6 @@ public record EnumDeclareSymbol : ADeclareSymbol
 
 public record struct EnumItem
 {
-    public required Int128 Value { get; set; }
+    public required long Value { get; set; }
     public required string Name { get; set; }
 }
