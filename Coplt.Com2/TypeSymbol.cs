@@ -53,6 +53,11 @@ internal class SymbolDb
         StaticSymbols = dict.ToFrozenDictionary();
     }
 
+    private TypeSymbol GetStaticSymbol(string name)
+    {
+        return Symbols.GetOrAdd(name, name => StaticSymbols.TryGetValue(name, out var r) ? r : new(name));
+    }
+
     private static void TryAddSymbol(Dictionary<string, TypeSymbol> dict, TypeSymbol symbol) => dict.TryAdd(symbol.FullName, symbol);
 
     public void Load(string path)
@@ -96,7 +101,7 @@ internal class SymbolDb
             {
                 Name = a.Name,
                 Guid = a.Guid,
-                Parent = null, // todo
+                Parent = a.Parent?.Guid,
                 Methods =
                 [
                     ..a.Methods.Select(m => new MethodDeclare
@@ -193,6 +198,7 @@ internal class SymbolDb
         var name = $"{type.Name}";
         _ = Guid.TryParse($"{type.FindCustomAttributes("System.Runtime.InteropServices", "GuidAttribute").FirstOrDefault()
             ?.Signature!.FixedArguments[0].Element!}", out var guid);
+        var interface_attr = type.FindCustomAttributes("Coplt.Com", "InterfaceAttribute").FirstOrDefault();
         List<InterfaceMethod> methods = new();
         foreach (var method in type.Methods)
         {
@@ -203,7 +209,8 @@ internal class SymbolDb
             var sig = method.Signature!;
             var ret_type = ExtraType(sig.ReturnType);
             List<InterfaceMethodParam> imp = new();
-            // todo props
+            var is_readonly = method.FindCustomAttributes("System.Runtime.CompilerServices", "IsReadOnlyAttribute").FirstOrDefault();
+            var method_flags = is_readonly is null ? MethodFlags.None : MethodFlags.Const;
             foreach (var p in method.Parameters)
             {
                 var p_type = ExtraType(p);
@@ -216,18 +223,67 @@ internal class SymbolDb
                     Flags = flags,
                 });
             }
+            methods.Add(new()
             {
+                Name = member_name,
+                Index = member_index,
+                Flags = method_flags,
+                ReturnType = ret_type,
+                Params = imp,
+            });
+        }
+        foreach (var property in type.Properties)
+        {
+            var member_attr = property.FindCustomAttributes("Coplt.Com", "InterfaceMemberAttribute").FirstOrDefault();
+            if (member_attr == null) continue;
+            var member_index = (uint)member_attr.Signature!.FixedArguments[0].Element!;
+            var sig = property.Signature!;
+            var member_type = ExtraType(sig.ReturnType);
+            var get_method = property.GetMethod;
+            var set_method = property.SetMethod;
+            var inc = 0u;
+            if (get_method != null)
+            {
+                var is_readonly = get_method.FindCustomAttributes("System.Runtime.CompilerServices", "IsReadOnlyAttribute").FirstOrDefault();
+                var member_name = $"get_{property.Name}";
+                var method_flags = MethodFlags.Getter;
+                method_flags |= is_readonly is null ? MethodFlags.None : MethodFlags.Const;
                 methods.Add(new()
                 {
                     Name = member_name,
-                    Index = member_index,
-                    Flags = MethodFlags.None,
-                    ReturnType = ret_type,
-                    Params = imp,
+                    Index = member_index + inc++,
+                    Flags = method_flags,
+                    ReturnType = member_type,
+                    Params = [],
                 });
             }
+            if (set_method != null)
+            {
+                var is_readonly = set_method.FindCustomAttributes("System.Runtime.CompilerServices", "IsReadOnlyAttribute").FirstOrDefault();
+                var member_name = $"set_{property.Name}";
+                var method_flags = MethodFlags.Setter;
+                method_flags |= is_readonly is null ? MethodFlags.None : MethodFlags.Const;
+                methods.Add(new()
+                {
+                    Name = member_name,
+                    Index = member_index + inc,
+                    Flags = method_flags,
+                    ReturnType = GetStaticSymbol("System.Void"),
+                    Params =
+                    [
+                        new()
+                        {
+                            Type = member_type,
+                            Flags = ParamFlags.None,
+                            Name = "value"
+                        }
+                    ],
+                });
+            }
+            // todo set
         }
-        return Interfaces.AddOrUpdate(name,
+        methods.Sort((a, b) => a.Index.CompareTo(b.Index));
+        var r = Interfaces.AddOrUpdate(name,
             static (name, a) => new() { Name = name, Guid = a.guid, Methods = a.methods, Export = a.export },
             static (_, old, a) =>
             {
@@ -236,6 +292,11 @@ internal class SymbolDb
             },
             (guid, methods, export)
         );
+        var parent = interface_attr?.Signature?.FixedArguments is [{ Element: TypeSignature par }]
+            ? ExtraInterface(par.Resolve() ?? throw new Exception($"Resolve failed: {par}"), false)
+            : null;
+        r.Parent = parent;
+        return r;
     }
 
     private static ParamFlags ExtraRef(Parameter parameter) => ExtraRef(parameter.Definition!);
@@ -323,6 +384,8 @@ internal class SymbolDb
         var output = DefineModel.MethodFlags.None;
         if ((input & MethodFlags.Const) != 0) output |= DefineModel.MethodFlags.Const;
         if ((input & MethodFlags.ReturnByRef) != 0) output |= DefineModel.MethodFlags.ReturnByRef;
+        if ((input & MethodFlags.Getter) != 0) output |= DefineModel.MethodFlags.Getter;
+        if ((input & MethodFlags.Setter) != 0) output |= DefineModel.MethodFlags.Setter;
         return output;
     }
 
@@ -420,6 +483,7 @@ public record InterfaceDeclareSymbol : ADeclareSymbol
     public uint Id { get; set; }
     public required bool Export { get; set; }
     public required Guid Guid { get; set; }
+    public InterfaceDeclareSymbol? Parent { get; set; }
     public required List<InterfaceMethod> Methods { get; set; }
 }
 
@@ -437,6 +501,8 @@ public enum MethodFlags
     None = 0,
     Const = 1 << 0,
     ReturnByRef = 1 << 1,
+    Getter = 1 << 2,
+    Setter = 1 << 3,
 }
 
 public record struct InterfaceMethod

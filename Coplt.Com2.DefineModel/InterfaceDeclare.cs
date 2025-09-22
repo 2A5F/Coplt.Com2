@@ -28,6 +28,8 @@ public enum MethodFlags
     None = 0,
     Const = 1 << 0,
     ReturnByRef = 1 << 1,
+    Getter = 1 << 2,
+    Setter = 1 << 3,
 }
 
 public record struct ParameterDeclare

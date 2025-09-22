@@ -1,0 +1,84 @@
+{
+  "types": [
+    {
+      "kind": "UInt32"
+    },
+    {
+      "kind": "Void"
+    }
+  ],
+  "structs": [],
+  "enums": [],
+  "interfaces": [
+    {
+      "name": "ITest1",
+      "guid": "c523bd17-e326-446c-8aab-c4e40774531a",
+      "methods": [
+        {
+          "name": "Add",
+          "index": 0,
+          "flags": "Const",
+          "return_type": 0,
+          "parameters": [
+            {
+              "name": "a",
+              "type": 0
+            },
+            {
+              "name": "b",
+              "type": 0
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "name": "ITest2",
+      "guid": "e6ea2c14-564f-47f8-9a62-7a55446c1438",
+      "parent": "c523bd17-e326-446c-8aab-c4e40774531a",
+      "methods": [
+        {
+          "name": "Sub",
+          "index": 0,
+          "flags": "Const",
+          "return_type": 0,
+          "parameters": [
+            {
+              "name": "a",
+              "type": 0
+            },
+            {
+              "name": "b",
+              "type": 0
+            }
+          ]
+        },
+        {
+          "name": "get_Foo",
+          "index": 1,
+          "flags": "Getter",
+          "return_type": 0,
+          "parameters": []
+        },
+        {
+          "name": "set_Foo",
+          "index": 2,
+          "flags": "Setter",
+          "return_type": 1,
+          "parameters": [
+            {
+              "name": "value",
+              "type": 0
+            }
+          ]
+        },
+        {
+          "name": "Some",
+          "index": 3,
+          "return_type": 0,
+          "parameters": []
+        }
+      ]
+    }
+  ]
+}

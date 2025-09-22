@@ -48,7 +48,25 @@ public class GenAction(Option<FileInfo> ConfigPath) : AsynchronousCommandLineAct
             }
         }
 
-        var com_define = db.ToComDefine();
+        foreach (var output in config.Outputs)
+        {
+            switch (output.Type)
+            {
+                case OutputType.Json:
+                {
+                    var com_define = db.ToComDefine();
+                    await using var dst = File.Open(output.Path, FileMode.Create, FileAccess.ReadWrite, FileShare.ReadWrite);
+                    await JsonSerializer.SerializeAsync(dst, com_define, ComDefineJsonContext.Default.ComDefine, cancel);
+                    break;
+                }
+                case OutputType.Cpp:
+                    // todo
+                    break;
+                default:
+                    await Utils.LogError($"unknown output type: {output.Type}");
+                    break;
+            }
+        }
 
         return await Task.FromResult(0);
     }

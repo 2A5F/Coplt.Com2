@@ -1,6 +1,6 @@
 {
   "inputs": [
-    "../../Coplt.Com/bin/Debug/net10.0/Coplt.Com.dll"
+    "./Test1/bin/Debug/net10.0/Test1.dll"
   ],
   "outputs": [
     {
