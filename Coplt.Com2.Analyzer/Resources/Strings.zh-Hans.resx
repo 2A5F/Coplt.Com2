@@ -27,4 +27,10 @@
     <data name="Generator.Interface.Error.GenericNotAllow" xml:space="preserve">
         <value>不允许泛型</value>
     </data>
+    <data name="Generator.Interface.Error.Managed" xml:space="preserve">
+        <value>不允许托管类型</value>
+    </data>
+    <data name="Generator.Interface.Error.RefLike" xml:space="preserve">
+        <value>不允许 ref struct</value>
+    </data>
 </root>

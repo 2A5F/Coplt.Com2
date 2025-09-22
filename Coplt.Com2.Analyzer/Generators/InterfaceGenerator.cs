@@ -86,6 +86,29 @@ public class InterfaceGenerator : IIncrementalGenerator
         public RefKind RefKind;
     }
 
+    private bool IsUnmanaged(ITypeSymbol type)
+    {
+        for (;;)
+        {
+            if (type is IPointerTypeSymbol ptr)
+            {
+                type = ptr.PointedAtType;
+                continue;
+            }
+            else if (type is IFunctionPointerTypeSymbol fn)
+            {
+                var sig = fn.Signature;
+                if (!IsUnmanaged(sig.ReturnType)) return false;
+                foreach (var p in sig.Parameters)
+                {
+                    if (!IsUnmanaged(p.Type)) return false;
+                }
+                return true;
+            }
+            return type.IsUnmanagedType;
+        }
+    }
+
     private Varying Transform(GeneratorAttributeSyntaxContext ctx, CancellationToken _)
     {
         var varying = new Varying();
@@ -145,8 +168,20 @@ public class InterfaceGenerator : IIncrementalGenerator
                 }
                 var args = new List<Param>();
                 var sym = semantic_model.GetDeclaredSymbol(method)!;
+                if (!IsUnmanaged(sym.ReturnType))
+                {
+                    var desc = Utils.MakeError(Id, Strings.Get("Generator.Interface.Error.Managed"));
+                    varying.AddDiagnostic(Diagnostic.Create(desc, method.ReturnType.GetLocation()));
+                }
+                var pi = 0;
                 foreach (var p in sym.Parameters)
                 {
+                    var i = pi++;
+                    if (!IsUnmanaged(p.Type))
+                    {
+                        var desc = Utils.MakeError(Id, Strings.Get("Generator.Interface.Error.Managed"));
+                        varying.AddDiagnostic(Diagnostic.Create(desc, method.ParameterList.Parameters[i].GetLocation()));
+                    }
                     args.Add(new()
                     {
                         Name = p.Name,

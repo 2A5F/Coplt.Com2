@@ -27,4 +27,10 @@
     <data name="Generator.Interface.Error.GenericNotAllow" xml:space="preserve">
         <value>Generics are not allowed</value>
     </data>
+    <data name="Generator.Interface.Error.Managed" xml:space="preserve">
+        <value>Managed type is not allowed</value>
+    </data>
+    <data name="Generator.Interface.Error.RefLike" xml:space="preserve">
+        <value>ref struct is not allowed</value>
+    </data>
 </root>
