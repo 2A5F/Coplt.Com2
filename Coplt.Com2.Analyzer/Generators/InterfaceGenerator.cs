@@ -64,6 +64,8 @@ public class InterfaceGenerator : IIncrementalGenerator
         Set = 1 << 2,
         GetReadOnly = 1 << 3,
         SetReadOnly = 1 << 4,
+        GetSet = Get | Set,
+        GetSetReadOnly = GetReadOnly | SetReadOnly,
     }
 
     public record struct Member

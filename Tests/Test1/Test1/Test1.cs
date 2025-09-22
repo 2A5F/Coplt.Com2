@@ -14,7 +14,11 @@ public unsafe partial struct ITest2
 {
     public readonly partial uint Sub(uint a, uint b);
     
-    public partial uint Foo { get; set; }
+    public readonly partial uint Foo { get; set; }
+    
+    public readonly partial uint Foo2 { get; }
+    
+    public readonly partial uint Foo3 { set; }
 
-    public partial uint Some();
+    public partial void Some();
 }

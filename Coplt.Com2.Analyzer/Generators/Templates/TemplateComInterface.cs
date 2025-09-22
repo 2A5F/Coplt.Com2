@@ -11,7 +11,8 @@ public class TemplateComInterface(InterfaceGenerator.Varying varying) : ATemplat
     private const string ComUtils = "global::Coplt.Com.ComUtils";
     private const string IComInterface = "global::Coplt.Com.IComInterface";
     private const string InterfaceMember = "global::Coplt.Com.InterfaceMemberAttribute";
-    private const string AggressiveInlining = "global::System.Runtime.CompilerServices.MethodImpl(global::System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)";
+    private const string AggressiveInlining =
+        "global::System.Runtime.CompilerServices.MethodImpl(global::System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)";
 
     protected override void DoGenAfterUsing()
     {
@@ -143,7 +144,7 @@ public class TemplateComInterface(InterfaceGenerator.Varying varying) : ATemplat
                 var has_fixed = fi > 0;
                 var space = has_fixed ? "            " : "        ";
                 if (has_fixed) sb.AppendLine($"        {{");
-                var re = member.ReturnRefKind is RefKind.None ? "return " : "return ref *";
+                var re = member.ReturnType == "void" ? "" : member.ReturnRefKind is RefKind.None ? "return " : "return ref *";
                 sb.Append($"{space}{re}this.LpVtbl->{member.Name}(ComUtils.AsPointer(in this)");
                 pi = 0;
                 fi = 0;
@@ -162,21 +163,29 @@ public class TemplateComInterface(InterfaceGenerator.Varying varying) : ATemplat
                 var nth = mi;
                 sb.AppendLine();
                 sb.AppendLine($"    [{InterfaceMember}({nth})]");
+                var get_set_ro =
+                    ((member.Flags & InterfaceGenerator.MemberFlags.GetSet) == InterfaceGenerator.MemberFlags.GetSet &&
+                     (member.Flags & InterfaceGenerator.MemberFlags.GetSetReadOnly) == InterfaceGenerator.MemberFlags.GetSetReadOnly)
+                    || ((member.Flags & InterfaceGenerator.MemberFlags.Get) != 0 && (member.Flags & InterfaceGenerator.MemberFlags.GetReadOnly) != 0)
+                    || ((member.Flags & InterfaceGenerator.MemberFlags.Set) != 0 && (member.Flags & InterfaceGenerator.MemberFlags.SetReadOnly) != 0);
+                var ro = get_set_ro ? "readonly " : "";
                 var rr = RefOnRet(member.ReturnRefKind);
-                sb.AppendLine($"    public partial {rr}{member.ReturnType} {member.Name}");
+                sb.AppendLine($"    public {ro}partial {rr}{member.ReturnType} {member.Name}");
                 sb.AppendLine($"    {{");
                 if ((member.Flags & InterfaceGenerator.MemberFlags.Get) != 0)
                 {
                     mi++;
+                    var gro = !get_set_ro && (member.Flags & InterfaceGenerator.MemberFlags.GetReadOnly) != 0 ? "readonly " : "";
                     var re = member.ReturnRefKind is RefKind.None ? "" : "ref *";
                     sb.AppendLine($"        [{AggressiveInlining}]");
-                    sb.AppendLine($"        get => {re}this.LpVtbl->get_{member.Name}(ComUtils.AsPointer(in this));");
+                    sb.AppendLine($"        {gro}get => {re}this.LpVtbl->get_{member.Name}(ComUtils.AsPointer(in this));");
                 }
                 if ((member.Flags & InterfaceGenerator.MemberFlags.Set) != 0)
                 {
                     mi++;
+                    var sro = !get_set_ro && (member.Flags & InterfaceGenerator.MemberFlags.SetReadOnly) != 0 ? "readonly " : "";
                     sb.AppendLine($"        [{AggressiveInlining}]");
-                    sb.AppendLine($"        set => this.LpVtbl->set_{member.Name}(ComUtils.AsPointer(in this), value);");
+                    sb.AppendLine($"        {sro}set => this.LpVtbl->set_{member.Name}(ComUtils.AsPointer(in this), value);");
                 }
                 sb.AppendLine($"    }}");
             }
