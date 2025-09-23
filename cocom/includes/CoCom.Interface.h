@@ -204,6 +204,16 @@ namespace Coplt
             return QueryInterface(guid_of<T>(), reinterpret_cast<void*&>(object));
         }
 
+        template <Interface T>
+        COPLT_FORCE_INLINE
+        HResult QueryInterface(COPLT_OUT Rc<T>& object) const
+        {
+            T* ptr;
+            const auto r = QueryInterface<T>(ptr);
+            if (r) object = Rc(static_cast<T*>(ptr));
+            return r;
+        }
+
         template<Interface T>
         COPLT_FORCE_INLINE
         Rc<T> TryCast() const
