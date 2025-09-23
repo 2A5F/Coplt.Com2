@@ -9,5 +9,6 @@
 #include "CoCom.Interface.h"
 #include "CoCom.NullPointerError.h"
 #include "CoCom.Rc.h"
+#include "CoCom.Object.h"
 
 #endif //COPLT_COM_H

@@ -11,6 +11,7 @@ set(SOURCE_FILES
         includes/CoCom.Interface.h
         includes/CoCom.NullPointerError.h
         includes/CoCom.Rc.h
+        includes/CoCom.Object.h
 )
 
 add_library(${PROJECT_NAME} INTERFACE ${SOURCE_FILES} src/cc.cc)
