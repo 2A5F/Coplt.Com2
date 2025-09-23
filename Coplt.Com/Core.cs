@@ -36,3 +36,12 @@ public unsafe partial struct IUnknown
         return r ? obj : default;
     }
 }
+
+[Interface, Guid("9d01e165-12b5-4190-bb46-3d78413de9a5")]
+public partial struct IWeak
+{
+    public readonly partial uint AddRefWeak();
+    public readonly partial uint ReleaseWeak();
+    public readonly partial bool TryUpgrade();
+    public readonly partial bool TryDowngrade();
+}

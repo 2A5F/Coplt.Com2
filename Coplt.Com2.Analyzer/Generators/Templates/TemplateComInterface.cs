@@ -82,6 +82,7 @@ public class TemplateComInterface(InterfaceGenerator.Varying varying) : ATemplat
         }
         foreach (var member in varying.members)
         {
+            var ret = member is { ReturnType: "bool", ReturnRefKind: RefKind.None } ? "global::Coplt.Com.B1" : member.ReturnType;
             if (member.Kind is InterfaceGenerator.MemberKind.Method)
             {
                 sb.AppendLine();
@@ -89,10 +90,11 @@ public class TemplateComInterface(InterfaceGenerator.Varying varying) : ATemplat
                 sb.Append($"        public delegate* unmanaged[Cdecl]<{varying.name}*");
                 foreach (var param in member.Params)
                 {
+                    var pt = param is { Type: "bool", RefKind: RefKind.None } ? "global::Coplt.Com.B1" : param.Type;
                     var pr = param.RefKind is not RefKind.None ? "*" : "";
-                    sb.Append($", {param.Type}{pr}");
+                    sb.Append($", {pt}{pr}");
                 }
-                sb.AppendLine($", {member.ReturnType}{rr}> {member.Name};");
+                sb.AppendLine($", {ret}{rr}> {member.Name};");
             }
             else
             {
@@ -100,11 +102,11 @@ public class TemplateComInterface(InterfaceGenerator.Varying varying) : ATemplat
                 var rr = member.ReturnRefKind is not RefKind.None ? "*" : "";
                 if ((member.Flags & InterfaceGenerator.MemberFlags.Get) != 0)
                 {
-                    sb.AppendLine($"        public delegate* unmanaged[Cdecl]<{varying.name}*, {member.ReturnType}{rr}> get_{member.Name};");
+                    sb.AppendLine($"        public delegate* unmanaged[Cdecl]<{varying.name}*, {ret}{rr}> get_{member.Name};");
                 }
                 if ((member.Flags & InterfaceGenerator.MemberFlags.Set) != 0)
                 {
-                    sb.AppendLine($"        public delegate* unmanaged[Cdecl]<{varying.name}*, {member.ReturnType}{rr}, void> set_{member.Name};");
+                    sb.AppendLine($"        public delegate* unmanaged[Cdecl]<{varying.name}*, {ret}{rr}, void> set_{member.Name};");
                 }
             }
         }
@@ -268,7 +270,8 @@ public class TemplateComInterface(InterfaceGenerator.Varying varying) : ATemplat
                     var pr = RefOnParam(param.RefKind);
                     sb.Append($"{pr}{param.Type} p{i}");
                 }
-                sb.Append($") => self.As{varying.name}->{member.Name}(");
+                var rrr = member.ReturnRefKind is not RefKind.None ? "ref " : "";
+                sb.Append($") => {rrr}self.As{varying.name}->{member.Name}(");
                 pi = 0;
                 foreach (var param in member.Params)
                 {
@@ -287,7 +290,7 @@ public class TemplateComInterface(InterfaceGenerator.Varying varying) : ATemplat
                 sb.AppendLine($"        {{");
                 if ((member.Flags & InterfaceGenerator.MemberFlags.Get) != 0)
                 {
-                    var re = member.ReturnRefKind is RefKind.None ? "" : "ref *";
+                    var re = member.ReturnRefKind is RefKind.None ? "" : "ref ";
                     sb.AppendLine($"            [{AggressiveInlining}]");
                     sb.AppendLine($"            get => {re}self.As{varying.name}->{member.Name};");
                 }
@@ -326,7 +329,8 @@ public class TemplateComInterface(InterfaceGenerator.Varying varying) : ATemplat
                     var pr = RefOnParam(param.RefKind);
                     sb.Append($"{pr}{param.Type} p{i}");
                 }
-                sb.Append($") => (({varying.name}*)self.Handle)->{member.Name}(");
+                var rrr = member.ReturnRefKind is not RefKind.None ? "ref " : "";
+                sb.Append($") => {rrr}(({varying.name}*)self.Handle)->{member.Name}(");
                 pi = 0;
                 foreach (var param in member.Params)
                 {
@@ -345,7 +349,7 @@ public class TemplateComInterface(InterfaceGenerator.Varying varying) : ATemplat
                 sb.AppendLine($"        {{");
                 if ((member.Flags & InterfaceGenerator.MemberFlags.Get) != 0)
                 {
-                    var re = member.ReturnRefKind is RefKind.None ? "" : "ref *";
+                    var re = member.ReturnRefKind is RefKind.None ? "" : "ref ";
                     sb.AppendLine($"            [{AggressiveInlining}]");
                     sb.AppendLine($"            get => {re}(({varying.name}*)self.Handle)->{member.Name};");
                 }
