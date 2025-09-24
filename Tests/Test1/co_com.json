@@ -4,12 +4,15 @@
   ],
   "outputs": [
     {
-      "type": "Json",
+      "type": "json",
       "path": "./define.json"
     },
     {
-      "type": "Cpp",
-      "path": "./headers"
+      "type": "cpp",
+      "path": "./headers",
+      "co_com_path": "CoCom.h",
+      "proj_name": "Test1",
+      "namespace": "Test1"
     }
   ]
 }

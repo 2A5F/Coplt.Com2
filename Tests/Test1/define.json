@@ -1,7 +1,7 @@
 {
   "types": [
     {
-      "kind": "Fn",
+      "kind": "fn",
       "index": 2,
       "params": [
         2,
@@ -9,39 +9,39 @@
       ]
     },
     {
-      "kind": "Generic",
+      "kind": "generic",
       "index": 0
     },
     {
-      "kind": "Int32"
+      "kind": "int32"
     },
     {
-      "kind": "UInt32"
+      "kind": "u_int32"
     },
     {
-      "kind": "Void"
+      "kind": "void"
     },
     {
-      "kind": "Enum",
+      "kind": "enum",
       "index": 0
     },
     {
-      "kind": "Enum",
+      "kind": "enum",
       "index": 1
     },
     {
-      "kind": "Struct",
+      "kind": "struct",
       "index": 0
     },
     {
-      "kind": "Struct",
+      "kind": "struct",
       "index": 1,
       "params": [
         2
       ]
     },
     {
-      "kind": "Ptr",
+      "kind": "ptr",
       "index": 8
     }
   ],
@@ -52,38 +52,38 @@
       "items": [
         {
           "name": "A",
-          "value": 0
+          "value": "0"
         },
         {
           "name": "B",
-          "value": 1
+          "value": "1"
         },
         {
           "name": "C",
-          "value": 2
+          "value": "2"
         }
       ]
     },
     {
       "name": "Enum2",
-      "flags": "Flags",
+      "flags": "flags",
       "underlying": 2,
       "items": [
         {
           "name": "None",
-          "value": 0
+          "value": "0"
         },
         {
           "name": "A",
-          "value": 1
+          "value": "1"
         },
         {
           "name": "B",
-          "value": 2
+          "value": "2"
         },
         {
           "name": "C",
-          "value": 4
+          "value": "4"
         }
       ]
     }
@@ -91,7 +91,7 @@
   "structs": [
     {
       "name": "Struct1",
-      "flags": "Union",
+      "flags": "union",
       "fields": [
         {
           "type": 2,
@@ -101,7 +101,7 @@
     },
     {
       "name": "Struct2",
-      "flags": "RefOnly",
+      "flags": "ref_only",
       "type_params": [
         "T"
       ],
@@ -121,7 +121,7 @@
         {
           "name": "Add",
           "index": 0,
-          "flags": "Const",
+          "flags": "const",
           "return_type": 3,
           "parameters": [
             {
@@ -144,7 +144,7 @@
         {
           "name": "Sub",
           "index": 0,
-          "flags": "Const",
+          "flags": "const",
           "return_type": 3,
           "parameters": [
             {
@@ -160,14 +160,14 @@
         {
           "name": "get_Foo",
           "index": 1,
-          "flags": "Const, Getter",
+          "flags": "const, getter",
           "return_type": 3,
           "parameters": []
         },
         {
           "name": "set_Foo",
           "index": 2,
-          "flags": "Const, Setter",
+          "flags": "const, setter",
           "return_type": 4,
           "parameters": [
             {
@@ -179,14 +179,14 @@
         {
           "name": "get_Foo2",
           "index": 3,
-          "flags": "Const, Getter",
+          "flags": "const, getter",
           "return_type": 3,
           "parameters": []
         },
         {
           "name": "set_Foo3",
           "index": 4,
-          "flags": "Const, Setter",
+          "flags": "const, setter",
           "return_type": 4,
           "parameters": [
             {

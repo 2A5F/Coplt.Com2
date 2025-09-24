@@ -26,8 +26,8 @@ namespace Coplt
     {
         { t.AddRefWeak() } -> std::same_as<u32>;
         { t.ReleaseWeak() } -> std::same_as<u32>;
-        { t.TryUpgrade() } -> std::same_as<u32>;
-        { t.TryDowngrade() } -> std::same_as<u32>;
+        { t.TryUpgrade() } -> std::same_as<bool>;
+        { t.TryDowngrade() } -> std::same_as<bool>;
     };
 }
 

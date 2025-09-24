@@ -26,29 +26,25 @@ public record Config
     [
         "./path.to.dll.or.json"
     ];
-    public List<Output> Outputs { get; set; } =
+    public List<AOutput> Outputs { get; set; } =
     [
-        new()
+        new JsonOutput
         {
-            Type = OutputType.Json,
             Path = "./path.to.define.json",
         },
-        new()
+        new CppOutput
         {
-            Type = OutputType.Cpp,
             Path = "./path.to.header.file.dir",
         }
     ];
 }
 
-public enum OutputType
+[JsonDerivedType(typeof(JsonOutput), typeDiscriminator: "json")]
+[JsonDerivedType(typeof(CppOutput), typeDiscriminator: "cpp")]
+[JsonPolymorphic(TypeDiscriminatorPropertyName = "type")]
+public abstract record AOutput
 {
-    Json,
-    Cpp,
-}
-
-public record Output
-{
-    public OutputType Type { get; set; }
     public string Path { get; set; } = null!;
 }
+
+public record JsonOutput : AOutput { }

@@ -5,3 +5,4 @@ add_definitions(-march=skylake)
 add_definitions(-Wno-everything)
 
 add_subdirectory(cocom)
+add_subdirectory(Tests/Test1)

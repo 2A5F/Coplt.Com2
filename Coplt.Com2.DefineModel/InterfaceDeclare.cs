@@ -1,5 +1,6 @@
 ﻿using System.Collections.Immutable;
 using System.Text.Json.Serialization;
+using Coplt.Com2.Json;
 
 namespace Coplt.Com2.DefineModel;
 
@@ -23,6 +24,7 @@ public record struct MethodDeclare
 }
 
 [Flags]
+[JsonConverter(typeof(SnakeCaseLower_JsonStringEnumConverter1<MethodFlags>))]
 public enum MethodFlags
 {
     None = 0,
@@ -41,6 +43,7 @@ public record struct ParameterDeclare
 }
 
 [Flags]
+[JsonConverter(typeof(SnakeCaseLower_JsonStringEnumConverter1<ParameterFlags>))]
 public enum ParameterFlags
 {
     None = 0,

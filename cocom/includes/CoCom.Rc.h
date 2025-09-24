@@ -197,7 +197,7 @@ namespace Coplt
         template <class = void> requires WeakReferenceCounting<T>
         Weak<T> downgrade() const
         {
-            return Weak(get(), Weak<T>::downgrade_t());
+            return Weak(get(), typename Weak<T>::downgrade_t());
         }
     };
 
@@ -359,7 +359,7 @@ namespace Coplt
 
         Rc<T> upgrade() const
         {
-            return Rc(get(), Rc<T>::upgrade_t());
+            return Rc(get(), typename Rc<T>::upgrade_t());
         }
     };
 }

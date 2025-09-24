@@ -423,7 +423,7 @@ internal class SymbolDb
                 var attr = field.Attributes;
                 const FieldAttributes fa = FieldAttributes.Static | FieldAttributes.Literal;
                 if ((attr & fa) != fa) continue;
-                var val = (long)Convert.ChangeType(field.Constant!.Value!.InterpretData(field.Constant.Type), typeof(long));
+                var val = $"{field.Constant!.Value!.InterpretData(field.Constant.Type)}";
                 decl.Items.Add(new()
                 {
                     Value = val,
@@ -757,6 +757,6 @@ public record EnumDeclareSymbol : ADeclareSymbol
 
 public record struct EnumItem
 {
-    public required long Value { get; set; }
+    public required string Value { get; set; }
     public required string Name { get; set; }
 }

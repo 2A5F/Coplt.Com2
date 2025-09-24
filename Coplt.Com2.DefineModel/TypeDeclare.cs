@@ -1,5 +1,6 @@
 ﻿using System.Collections.Immutable;
 using System.Text.Json.Serialization;
+using Coplt.Com2.Json;
 
 namespace Coplt.Com2.DefineModel;
 
@@ -14,6 +15,7 @@ public record struct TypeDeclare
     public ImmutableArray<uint> Params { get; set; }
 }
 
+[JsonConverter(typeof(SnakeCaseLower_JsonStringEnumConverter1<TypeKind>))]
 public enum TypeKind : uint
 {
     Unknown,
@@ -69,6 +71,7 @@ public enum TypeKind : uint
 }
 
 [Flags]
+[JsonConverter(typeof(SnakeCaseLower_JsonStringEnumConverter1<TypeFlags>))]
 public enum TypeFlags
 {
     None,
