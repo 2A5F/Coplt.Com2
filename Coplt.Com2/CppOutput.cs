@@ -332,6 +332,9 @@ public record CppOutput : AOutput
                     }
                     sb.AppendLine($")");
                     sb.AppendLine($"                {{");
+                    sb.AppendLine($"                    #ifdef COPLT_COM_BEFORE_VIRTUAL_CALL");
+                    sb.AppendLine($"                    COPLT_COM_BEFORE_VIRTUAL_CALL({ns_pre}{name}, {method.Name})");
+                    sb.AppendLine($"                    #endif");
                     sb.Append($"                    return static_cast<const Self*>(self)->Impl_{method.Name}(");
                     inc = 0;
                     foreach (var _ in method.Params)
@@ -341,6 +344,9 @@ public record CppOutput : AOutput
                         sb.Append($"p{i}");
                     }
                     sb.AppendLine($");");
+                    sb.AppendLine($"                    #ifdef COPLT_COM_AFTER_VIRTUAL_CALL");
+                    sb.AppendLine($"                    COPLT_COM_AFTER_VIRTUAL_CALL({ns_pre}{name}, {method.Name})");
+                    sb.AppendLine($"                    #endif");
                     sb.AppendLine($"                }},");
                 }
                 sb.AppendLine($"            }};");

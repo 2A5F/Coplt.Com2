@@ -63,7 +63,13 @@ struct ::Coplt::Internal::ComProxy<::Test1::ITest1>
                 .b = Super::GetVtb(),
                 .f_Add = [](const ::Test1::ITest1* self, ::Coplt::u32 p0, ::Coplt::u32 p1)
                 {
+                    #ifdef COPLT_COM_BEFORE_VIRTUAL_CALL
+                    COPLT_COM_BEFORE_VIRTUAL_CALL(::Test1::ITest1, Add)
+                    #endif
                     return static_cast<const Self*>(self)->Impl_Add(p0, p1);
+                    #ifdef COPLT_COM_AFTER_VIRTUAL_CALL
+                    COPLT_COM_AFTER_VIRTUAL_CALL(::Test1::ITest1, Add)
+                    #endif
                 },
             };
             return vtb;
@@ -135,27 +141,63 @@ struct ::Coplt::Internal::ComProxy<::Test1::ITest2>
                 .b = Super::GetVtb(),
                 .f_Sub = [](const ::Test1::ITest2* self, ::Coplt::u32 p0, ::Coplt::u32 p1)
                 {
+                    #ifdef COPLT_COM_BEFORE_VIRTUAL_CALL
+                    COPLT_COM_BEFORE_VIRTUAL_CALL(::Test1::ITest2, Sub)
+                    #endif
                     return static_cast<const Self*>(self)->Impl_Sub(p0, p1);
+                    #ifdef COPLT_COM_AFTER_VIRTUAL_CALL
+                    COPLT_COM_AFTER_VIRTUAL_CALL(::Test1::ITest2, Sub)
+                    #endif
                 },
                 .f_get_Foo = [](const ::Test1::ITest2* self)
                 {
+                    #ifdef COPLT_COM_BEFORE_VIRTUAL_CALL
+                    COPLT_COM_BEFORE_VIRTUAL_CALL(::Test1::ITest2, get_Foo)
+                    #endif
                     return static_cast<const Self*>(self)->Impl_get_Foo();
+                    #ifdef COPLT_COM_AFTER_VIRTUAL_CALL
+                    COPLT_COM_AFTER_VIRTUAL_CALL(::Test1::ITest2, get_Foo)
+                    #endif
                 },
                 .f_set_Foo = [](const ::Test1::ITest2* self, ::Coplt::u32 p0)
                 {
+                    #ifdef COPLT_COM_BEFORE_VIRTUAL_CALL
+                    COPLT_COM_BEFORE_VIRTUAL_CALL(::Test1::ITest2, set_Foo)
+                    #endif
                     return static_cast<const Self*>(self)->Impl_set_Foo(p0);
+                    #ifdef COPLT_COM_AFTER_VIRTUAL_CALL
+                    COPLT_COM_AFTER_VIRTUAL_CALL(::Test1::ITest2, set_Foo)
+                    #endif
                 },
                 .f_get_Foo2 = [](const ::Test1::ITest2* self)
                 {
+                    #ifdef COPLT_COM_BEFORE_VIRTUAL_CALL
+                    COPLT_COM_BEFORE_VIRTUAL_CALL(::Test1::ITest2, get_Foo2)
+                    #endif
                     return static_cast<const Self*>(self)->Impl_get_Foo2();
+                    #ifdef COPLT_COM_AFTER_VIRTUAL_CALL
+                    COPLT_COM_AFTER_VIRTUAL_CALL(::Test1::ITest2, get_Foo2)
+                    #endif
                 },
                 .f_set_Foo3 = [](const ::Test1::ITest2* self, ::Coplt::u32 p0)
                 {
+                    #ifdef COPLT_COM_BEFORE_VIRTUAL_CALL
+                    COPLT_COM_BEFORE_VIRTUAL_CALL(::Test1::ITest2, set_Foo3)
+                    #endif
                     return static_cast<const Self*>(self)->Impl_set_Foo3(p0);
+                    #ifdef COPLT_COM_AFTER_VIRTUAL_CALL
+                    COPLT_COM_AFTER_VIRTUAL_CALL(::Test1::ITest2, set_Foo3)
+                    #endif
                 },
                 .f_Some = [](::Test1::ITest2* self)
                 {
+                    #ifdef COPLT_COM_BEFORE_VIRTUAL_CALL
+                    COPLT_COM_BEFORE_VIRTUAL_CALL(::Test1::ITest2, Some)
+                    #endif
                     return static_cast<const Self*>(self)->Impl_Some();
+                    #ifdef COPLT_COM_AFTER_VIRTUAL_CALL
+                    COPLT_COM_AFTER_VIRTUAL_CALL(::Test1::ITest2, Some)
+                    #endif
                 },
             };
             return vtb;
@@ -228,11 +270,23 @@ struct ::Coplt::Internal::ComProxy<::Test1::ITest3>
                 .b = Super::GetVtb(),
                 .f_Some1 = [](::Test1::ITest3* self, ::Test1::Struct1 p0, ::Test1::Enum1 p1, ::Test1::Enum2 p2)
                 {
+                    #ifdef COPLT_COM_BEFORE_VIRTUAL_CALL
+                    COPLT_COM_BEFORE_VIRTUAL_CALL(::Test1::ITest3, Some1)
+                    #endif
                     return static_cast<const Self*>(self)->Impl_Some1(p0, p1, p2);
+                    #ifdef COPLT_COM_AFTER_VIRTUAL_CALL
+                    COPLT_COM_AFTER_VIRTUAL_CALL(::Test1::ITest3, Some1)
+                    #endif
                 },
                 .f_FnPtr = [](::Test1::ITest3* self, ::Coplt::Func<::Coplt::i32, ::Coplt::i32, ::Coplt::i32>* p0)
                 {
+                    #ifdef COPLT_COM_BEFORE_VIRTUAL_CALL
+                    COPLT_COM_BEFORE_VIRTUAL_CALL(::Test1::ITest3, FnPtr)
+                    #endif
                     return static_cast<const Self*>(self)->Impl_FnPtr(p0);
+                    #ifdef COPLT_COM_AFTER_VIRTUAL_CALL
+                    COPLT_COM_AFTER_VIRTUAL_CALL(::Test1::ITest3, FnPtr)
+                    #endif
                 },
             };
             return vtb;
