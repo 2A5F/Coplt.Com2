@@ -1,26 +1,21 @@
-#include "../headers/Types.h"
+#include <print>
+
+#include "../headers/Interface.h"
 
 using namespace Coplt;
 
-struct Foo : ComObject<IWeak>
+struct Foo : ComObject<Test1::ITest1>
 {
-    static Rc<Foo> some()
+protected:
+    u32 Impl_Add(u32 a, u32 b) const override
     {
-        return Rc(new Foo());
-    }
-
-    void some1(Weak<Foo> a)
-    {
-        if (Rc<Foo> r = a.upgrade())
-        {
-        }
+        return a + b;
     }
 };
 
 int main(int argc, char** argv)
 {
-    Rc a = Foo::some();
-    Rc b = a;
-    b->some1(a.downgrade());
+    Rc a(new Foo);
+    std::print("{}", a->Add(1, 2));
     return 0;
 }

@@ -10,7 +10,7 @@
 
 #define COPLT_COM_INTERFACE(NAME, ID, ...) struct COPLT_UUID_MARK(ID) COPLT_NOVTABLE NAME : __VA_ARGS__
 
-#define COPLT_COM_PVTB(SELF) (*(const Internal::VirtualTable<SELF>**)this)
+#define COPLT_COM_PVTB(SELF) (*(const ::Coplt::Internal::VirtualTable<SELF>**)this)
 #define COPLT_COM_METHOD(NAME, RET, PARAMS, ...) COPLT_FORCE_INLINE\
     RET NAME PARAMS\
     {\
@@ -147,7 +147,8 @@ namespace Coplt
             COPLT_FORCE_INLINE
             static const VirtualTable& GetVtb()
             {
-                static VirtualTable vtb{
+                static VirtualTable vtb
+                {
                     .f_QueryInterface = [](const IUnknown* self, const Guid& guid, void*& object)
                     {
                         return static_cast<const Self*>(self)->Impl_QueryInterface(guid, object);
@@ -214,7 +215,7 @@ namespace Coplt
             return r;
         }
 
-        template<Interface T>
+        template <Interface T>
         COPLT_FORCE_INLINE
         Rc<T> TryCast() const
         {
@@ -231,7 +232,7 @@ namespace Coplt
     template <>
     struct Internal::VirtualTable<IWeak>
     {
-        VirtualTable<IUnknown> b_0;
+        VirtualTable<IUnknown> b;
         u32 (*const f_AddRefWeak)(const IWeak*);
         u32 (*const f_ReleaseWeak)(const IWeak*);
         bool (*const f_TryUpgrade)(const IWeak*);
@@ -271,8 +272,9 @@ namespace Coplt
             COPLT_FORCE_INLINE
             static const VirtualTable& GetVtb()
             {
-                static VirtualTable vtb{
-                    .b_0 = Super::GetVtb(),
+                static VirtualTable vtb
+                {
+                    .b = Super::GetVtb(),
                     .f_AddRefWeak = [](const IWeak* self)
                     {
                         return static_cast<const Self*>(self)->Impl_AddRefWeak();
@@ -312,7 +314,7 @@ namespace Coplt
     using Super = IUnknown;\
     using Self = IWeak;\
 \
-    explicit IWeak(const Internal::VirtualTable<Self>* vtbl) : IUnknown(&vtbl->b_0) {}
+    explicit IWeak(const Internal::VirtualTable<Self>* vtbl) : IUnknown(&vtbl->b) {}
 #pragma endregion IWeak meta
 
     COPLT_COM_INTERFACE(IWeak, "9d01e165-12b5-4190-bb46-3d78413de9a5", IUnknown)

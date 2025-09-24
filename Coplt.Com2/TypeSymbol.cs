@@ -243,7 +243,7 @@ internal class SymbolDb
         var structs = struct_tmp.AsParallel().AsOrdered()
             .Select(a => new StructDeclare
             {
-                Name = a.Name.Split('.', '+').Last().Split('`').First(),
+                Name = a.Name.Split('`').First().Split('.', '+').Last(),
                 Flags = ToComDefine(a.Flags),
                 TypeParams = a.TypeParams.Count == 0 ? default : [..a.TypeParams],
                 Fields =
@@ -601,7 +601,7 @@ public record TypeSymbol(string FullName)
 {
     public uint Id { get; set; }
     public string FullName { get; } = FullName;
-    public string Name { get; } = FullName.Split('.', '+').Last();
+    public string Name { get; } = FullName.Split('`').First().Split('.', '+').Last();
     public TypeKind Kind { get; set; }
     public TypeFlags Flags { get; set; }
     public ADeclareSymbol? Declare { get; set; }
