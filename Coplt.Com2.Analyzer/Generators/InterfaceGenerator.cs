@@ -41,7 +41,7 @@ public class InterfaceGenerator : IIncrementalGenerator
         public AlwaysEq<List<Diagnostic>> diagnostics = new(new());
         public GenBase GenBase;
         public Guid guid;
-        public string name;
+        public string name = null!;
         public string? parent;
         public bool isIUnknown;
         public ImmutableArray<Member> members;
