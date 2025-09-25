@@ -127,6 +127,11 @@ internal class SymbolDb
             .Where(a => a.Value.Export)
             .OrderBy(a => a.Key, StringComparer.Ordinal)
             .Select(a => a.Value)
+            .Select((a, i) =>
+            {
+                a.Id = (uint)i;
+                return a;
+            })
             .Select(a => new InterfaceDeclare
             {
                 Name = a.Name,
@@ -162,6 +167,13 @@ internal class SymbolDb
         {
             switch (a.Kind)
             {
+                case TypeKind.Interface:
+                    return new TypeDeclare
+                    {
+                        Kind = DefineModel.TypeKind.Interface,
+                        Index = a.Declare!.Id,
+                        Flags = ToComDefine(a.Flags),
+                    };
                 case TypeKind.Generic:
                     return new TypeDeclare
                     {
@@ -291,6 +303,9 @@ internal class SymbolDb
     public InterfaceDeclareSymbol ExtraInterface(TypeDefinition type, bool export)
     {
         var name = $"{type.Name}";
+        var decl = Interfaces.GetOrAdd(name, _ => new() { Name = null! });
+        if (export) decl.Export = true;
+        if (decl.Name != null!) return decl;
         _ = Guid.TryParse($"{type.FindCustomAttributes("System.Runtime.InteropServices", "GuidAttribute").FirstOrDefault()
             ?.Signature!.FixedArguments[0].Element!}", out var guid);
         var interface_attr = type.FindCustomAttributes("Coplt.Com", "InterfaceAttribute").FirstOrDefault();
@@ -377,20 +392,14 @@ internal class SymbolDb
             }
         }
         methods.Sort((a, b) => a.Index.CompareTo(b.Index));
-        var r = Interfaces.AddOrUpdate(name,
-            static (name, a) => new() { Name = name, Guid = a.guid, Methods = a.methods, Export = a.export },
-            static (_, old, a) =>
-            {
-                if (a.export) old.Export = a.export;
-                return old;
-            },
-            (guid, methods, export)
-        );
+        decl.Guid = guid;
+        decl.Methods = methods;
         var parent = interface_attr?.Signature?.FixedArguments is [{ Element: TypeSignature par }]
             ? ExtraInterface(par.Resolve() ?? throw new Exception($"Resolve failed: {par}"), false)
             : null;
-        r.Parent = parent;
-        return r;
+        decl.Parent = parent;
+        decl.Name = name;
+        return decl;
     }
 
     private static ParamFlags ExtraRef(Parameter parameter) => ExtraRef(parameter.Definition!);
@@ -468,6 +477,12 @@ internal class SymbolDb
         if (type.IsByRefLike) throw new NotSupportedException($"ByRef type is not support: {type}");
         var symbol = Symbols.GetOrAdd(full_name, name => StaticSymbols.TryGetValue(name, out var r) ? r : new(name));
         if (symbol.Kind != TypeKind.Unknown) return symbol;
+        if (type.FindCustomAttributes("Coplt.Com", "InterfaceAttribute").Any())
+        {
+            symbol.Kind = TypeKind.Interface;
+            symbol.Declare = ExtraInterface(type, false);
+            return symbol;
+        }
         symbol.Kind = type.IsEnum ? TypeKind.Enum : TypeKind.Struct;
         symbol.Declare = ExtraDeclare(type);
         return symbol;
@@ -627,6 +642,7 @@ public enum TypeKind
 {
     Unknown,
 
+    Interface,
     // use Index
     Generic,
     // use Declare, Generics
@@ -680,10 +696,10 @@ public record ADeclareSymbol
 
 public record InterfaceDeclareSymbol : ADeclareSymbol
 {
-    public required bool Export { get; set; }
-    public required Guid Guid { get; set; }
+    public bool Export { get; set; }
+    public Guid Guid { get; set; }
     public InterfaceDeclareSymbol? Parent { get; set; }
-    public required List<InterfaceMethod> Methods { get; set; }
+    public List<InterfaceMethod> Methods { get; set; }
 }
 
 [Flags]

@@ -21,6 +21,10 @@ public enum TypeKind : uint
     Unknown,
 
     /// <summary>
+    /// <see cref="TypeDeclare.Index"/> means index of interface
+    /// </summary>
+    Interface,
+    /// <summary>
     /// <see cref="TypeDeclare.Index"/> means index in struct
     /// </summary>
     Generic,

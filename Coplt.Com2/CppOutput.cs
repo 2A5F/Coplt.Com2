@@ -19,6 +19,8 @@ public record CppOutput : AOutput
     {
         switch (symbol.Kind)
         {
+            case TypeKind.Interface:
+                return symbol.Name;
             case TypeKind.Generic:
                 return $"T{symbol.Index}";
             case TypeKind.Struct:
@@ -335,7 +337,9 @@ public record CppOutput : AOutput
                     sb.AppendLine($"                    #ifdef COPLT_COM_BEFORE_VIRTUAL_CALL");
                     sb.AppendLine($"                    COPLT_COM_BEFORE_VIRTUAL_CALL({ns_pre}{name}, {method.Name})");
                     sb.AppendLine($"                    #endif");
-                    sb.Append($"                    return static_cast<const Self*>(self)->Impl_{method.Name}(");
+                    sb.Append($"                    return static_cast<");
+                    if ((method.Flags & MethodFlags.Const) != 0) sb.Append($"const ");
+                    sb.Append($"Self*>(self)->Impl_{method.Name}(");
                     inc = 0;
                     foreach (var _ in method.Params)
                     {
