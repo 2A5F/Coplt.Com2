@@ -12,6 +12,11 @@ public record struct StructDeclare
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public ImmutableArray<string> TypeParams { get; set; }
     public ImmutableArray<FieldDeclare> Fields { get; set; }
+    /// <summary>
+    /// Type index
+    /// </summary>
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public uint? MarshalAs { get; set; }
 }
 
 [Flags]

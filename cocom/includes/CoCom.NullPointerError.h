@@ -5,6 +5,7 @@
 #include <exception>
 #include <stacktrace>
 #include <utility>
+#include <format>
 
 namespace Coplt
 {

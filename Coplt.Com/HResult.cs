@@ -21,6 +21,7 @@ public enum HRESULT : uint
     InvalidArg = 0x80070057,
 }
 
+[ComMarshalAs(ComUnmanagedType.I32)]
 public readonly record struct HResult(HRESULT Value)
 {
     public readonly HRESULT Value = Value;

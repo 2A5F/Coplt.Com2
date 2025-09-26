@@ -157,6 +157,17 @@ namespace Coplt
             return m_ptr;
         }
 
+        T** put() noexcept
+        {
+            return &m_ptr;
+        }
+
+        template <typename U> requires std::convertible_to<T*, U*>
+        U** put() noexcept
+        {
+            return reinterpret_cast<U**>(&m_ptr);
+        }
+
         T& operator*() const
         {
 #ifdef COPLT_NULL_CHECK

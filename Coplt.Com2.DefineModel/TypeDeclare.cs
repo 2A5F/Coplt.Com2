@@ -42,6 +42,10 @@ public enum TypeKind : uint
     /// </summary>
     Ptr,
     /// <summary>
+    /// <see cref="TypeDeclare.Index"/> means target type index
+    /// </summary>
+    Ref,
+    /// <summary>
     /// <see cref="TypeDeclare.Index"/> means return type index
     /// <see cref="TypeDeclare.Params"/> means function arguments
     /// </summary>

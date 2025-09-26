@@ -17,17 +17,17 @@ namespace Coplt
     template <class T>
     concept ReferenceCounting = requires(T& t)
     {
-        { t.AddRef() } -> std::same_as<u32>;
-        { t.Release() } -> std::same_as<u32>;
+        { t.AddRef() } -> std::convertible_to<u32>;
+        { t.Release() } -> std::convertible_to<u32>;
     };
 
     template <class T>
     concept WeakReferenceCounting = requires(T& t)
     {
-        { t.AddRefWeak() } -> std::same_as<u32>;
-        { t.ReleaseWeak() } -> std::same_as<u32>;
-        { t.TryUpgrade() } -> std::same_as<bool>;
-        { t.TryDowngrade() } -> std::same_as<bool>;
+        { t.AddRefWeak() } -> std::convertible_to<u32>;
+        { t.ReleaseWeak() } -> std::convertible_to<u32>;
+        { t.TryUpgrade() } -> std::convertible_to<bool>;
+        { t.TryDowngrade() } -> std::convertible_to<bool>;
     };
 }
 

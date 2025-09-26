@@ -34,4 +34,12 @@
         </None>
     </ItemGroup>
 
+    <ItemGroup>
+      <PackageReference Include="Fody">
+        <PrivateAssets>all</PrivateAssets>
+        <IncludeAssets>runtime; build; native; contentfiles; analyzers; buildtransitive</IncludeAssets>
+      </PackageReference>
+      <PackageReference Include="InlineIL.Fody" PrivateAssets="all" />
+    </ItemGroup>
+
 </Project>

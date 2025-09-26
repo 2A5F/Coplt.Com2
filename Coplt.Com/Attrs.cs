@@ -1,4 +1,6 @@
-﻿namespace Coplt.Com;
+﻿using System.Runtime.InteropServices;
+
+namespace Coplt.Com;
 
 [AttributeUsage(AttributeTargets.Struct)]
 public sealed class OpaqueAttribute : Attribute;
@@ -36,4 +38,26 @@ public sealed class MarkInterfaceAttribute(Type Type) : Attribute
 public sealed class InterfaceMemberAttribute(uint Index) : Attribute
 {
     public uint Index { get; } = Index;
+}
+
+[AttributeUsage(AttributeTargets.Struct)]
+public sealed class ComMarshalAsAttribute(ComUnmanagedType Type) : Attribute
+{
+    public ComUnmanagedType Type { get; } = Type;
+}
+
+public enum ComUnmanagedType
+{
+    I8,
+    U8,
+    I16,
+    U16,
+    I32,
+    ISize,
+    U32,
+    I64,
+    U64,
+    USize,
+    F4,
+    F8,
 }

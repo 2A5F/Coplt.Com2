@@ -13,6 +13,8 @@ public class TemplateComInterface(InterfaceGenerator.Varying varying) : ATemplat
     private const string InterfaceMember = "global::Coplt.Com.InterfaceMemberAttribute";
     private const string AggressiveInlining =
         "global::System.Runtime.CompilerServices.MethodImpl(global::System.Runtime.CompilerServices.MethodImplOptions.AggressiveInlining)";
+    private const string UnscopedRef =
+        "global::System.Diagnostics.CodeAnalysis.UnscopedRefAttribute";
 
     protected override void DoGenAfterUsing()
     {
@@ -82,19 +84,34 @@ public class TemplateComInterface(InterfaceGenerator.Varying varying) : ATemplat
         }
         foreach (var member in varying.members)
         {
-            var ret = member is { ReturnType: "bool", ReturnRefKind: RefKind.None } ? "global::Coplt.Com.B1" : member.ReturnType;
+            var ret_struct_ptr = member is { ReturnTypeMarshalAs: null, ReturnTypeIsStruct: true, ReturnRefKind: RefKind.None };
+            var ret = member switch
+            {
+                { ReturnType: "bool", ReturnRefKind: RefKind.None } => "global::Coplt.Com.B1",
+                { ReturnTypeMarshalAs: { } ma } => ma,
+                { ReturnTypeIsStruct: true, ReturnRefKind: RefKind.None } => $"{member.ReturnType}*",
+                _ => member.ReturnType,
+            };
             if (member.Kind is InterfaceGenerator.MemberKind.Method)
             {
                 sb.AppendLine();
                 var rr = member.ReturnRefKind is not RefKind.None ? "*" : "";
                 sb.Append($"        public delegate* unmanaged[Cdecl]<{varying.name}*");
+                if (ret_struct_ptr) sb.Append($", {ret}");
                 foreach (var param in member.Params)
                 {
-                    var pt = param is { Type: "bool", RefKind: RefKind.None } ? "global::Coplt.Com.B1" : param.Type;
+                    var pt = param switch
+                    {
+                        { Type: "bool", RefKind: RefKind.None } => "global::Coplt.Com.B1",
+                        { TypeMarshalAs: { } ma } => ma,
+                        { TypeIsStruct: true, RefKind: RefKind.None } => $"{param.Type}*",
+                        _ => param.Type,
+                    };
                     var pr = param.RefKind is not RefKind.None ? "*" : "";
                     sb.Append($", {pt}{pr}");
                 }
-                sb.AppendLine($", {ret}{rr}> {member.Name};");
+                sb.Append($", {ret}{rr}");
+                sb.AppendLine($"> {member.Name};");
             }
             else
             {
@@ -118,10 +135,11 @@ public class TemplateComInterface(InterfaceGenerator.Varying varying) : ATemplat
         var mi = 0;
         foreach (var member in varying.members)
         {
+            var ret_struct_ptr = member is { ReturnTypeMarshalAs: null, ReturnTypeIsStruct: true, ReturnRefKind: RefKind.None };
             if (member.Kind is InterfaceGenerator.MemberKind.Method)
             {
                 sb.AppendLine();
-                sb.AppendLine($"    [{InterfaceMember}({mi++}), {AggressiveInlining}]");
+                sb.AppendLine($"    [{InterfaceMember}({mi++}), {AggressiveInlining}, {UnscopedRef}]");
                 var ro = (member.Flags & InterfaceGenerator.MemberFlags.Readonly) != 0 ? "readonly " : "";
                 var rr = RefOnRet(member.ReturnRefKind);
                 sb.Append($"    public {ro}partial {rr}{member.ReturnType} {member.Name}(");
@@ -135,6 +153,7 @@ public class TemplateComInterface(InterfaceGenerator.Varying varying) : ATemplat
                 }
                 sb.AppendLine($")");
                 sb.AppendLine($"    {{");
+                if (ret_struct_ptr) sb.AppendLine($"        {member.ReturnType} r;");
                 pi = 0;
                 var fi = 0;
                 foreach (var param in member.Params)
@@ -146,14 +165,26 @@ public class TemplateComInterface(InterfaceGenerator.Varying varying) : ATemplat
                 var has_fixed = fi > 0;
                 var space = has_fixed ? "            " : "        ";
                 if (has_fixed) sb.AppendLine($"        {{");
-                var re = member.ReturnType == "void" ? "" : member.ReturnRefKind is RefKind.None ? "return " : "return ref *";
+                var re = (member, ret_struct_ptr) switch
+                {
+                    (_, true) => "return *",
+                    ({ ReturnType: "void" }, _) => "",
+                    ({ ReturnRefKind : not RefKind.None }, _) => "return ref *",
+                    _ => "return ",
+                };
                 sb.Append($"{space}{re}this.LpVtbl->{member.Name}(ComUtils.AsPointer(in this)");
+                if (ret_struct_ptr) sb.Append($", &r");
                 pi = 0;
                 fi = 0;
                 foreach (var param in member.Params)
                 {
                     var i = pi++;
-                    var n = param.RefKind is RefKind.None ? $"p{i}" : $"f{fi++}";
+                    var n = param switch
+                    {
+                        { RefKind: RefKind.None, TypeIsStruct: true, TypeMarshalAs: null } => $"&p{i}",
+                        { RefKind: not RefKind.None } => $"f{fi++}",
+                        _ => $"p{i}",
+                    };
                     sb.Append($", {n}");
                 }
                 sb.AppendLine($");");

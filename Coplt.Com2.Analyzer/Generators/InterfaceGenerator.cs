@@ -75,6 +75,8 @@ public class InterfaceGenerator : IIncrementalGenerator
         public int Index;
         public string Name;
         public string ReturnType;
+        public string? ReturnTypeMarshalAs;
+        public bool ReturnTypeIsStruct;
         public RefKind ReturnRefKind;
         public ImmutableArray<Param> Params;
     }
@@ -83,6 +85,8 @@ public class InterfaceGenerator : IIncrementalGenerator
     {
         public string Name;
         public string Type;
+        public string? TypeMarshalAs;
+        public bool TypeIsStruct;
         public RefKind RefKind;
     }
 
@@ -107,6 +111,11 @@ public class InterfaceGenerator : IIncrementalGenerator
             }
             return type.IsUnmanagedType;
         }
+    }
+
+    private bool IsUserDefinedStruct(ITypeSymbol symbol)
+    {
+        return symbol is { TypeKind: TypeKind.Struct, SpecialType: SpecialType.None };
     }
 
     private Varying Transform(GeneratorAttributeSyntaxContext ctx, CancellationToken _)
@@ -186,6 +195,8 @@ public class InterfaceGenerator : IIncrementalGenerator
                     {
                         Name = p.Name,
                         Type = p.Type.ToDisplayString(TypeDisplayFormat),
+                        TypeIsStruct = IsUserDefinedStruct(p.Type),
+                        TypeMarshalAs = null, // todo
                         RefKind = p.RefKind,
                     });
                 }
@@ -196,6 +207,8 @@ public class InterfaceGenerator : IIncrementalGenerator
                     Index = index,
                     Name = sym.Name,
                     ReturnType = sym.ReturnType.ToDisplayString(TypeDisplayFormat),
+                    ReturnTypeIsStruct = IsUserDefinedStruct(sym.ReturnType),
+                    ReturnTypeMarshalAs = null, // todo
                     ReturnRefKind = sym.RefKind,
                     Params = [..args],
                 });

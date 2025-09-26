@@ -34,6 +34,11 @@ public record CppOutput : AOutput
                 var c = (symbol.Flags & TypeFlags.Const) != 0 ? "const" : "";
                 return $"{c}{ToCppName(symbol.TargetOrReturn!, ns)}*";
             }
+            case TypeKind.Ref:
+            {
+                var c = (symbol.Flags & TypeFlags.Const) != 0 ? "const" : "";
+                return $"{c}{ToCppName(symbol.TargetOrReturn!, ns)}&";
+            }
             case TypeKind.Fn:
             {
                 var c = (symbol.Flags & TypeFlags.Const) != 0 ? "const" : "";
@@ -260,23 +265,60 @@ public record CppOutput : AOutput
                 var parent = a.Parent?.Name ?? "IUnknown";
                 sb.AppendLine();
 
+                #region VirtualTable
+
                 sb.AppendLine($"template <>");
                 sb.AppendLine($"struct ::Coplt::Internal::VirtualTable<{ns_pre}{name}>");
                 sb.AppendLine($"{{");
                 sb.AppendLine($"    VirtualTable<{ns_pre}{parent}> b;");
                 foreach (var method in a.Methods)
                 {
-                    sb.Append($"    {ToCppName(method.ReturnType, ns_pre)} (*const f_{method.Name})(");
+                    var ret_struct_ptr = method.ReturnType.Kind.IsStruct; // todo check marshal as
+                    sb.Append($"    {ToCppName(method.ReturnType, ns_pre)}");
+                    if (ret_struct_ptr) sb.Append("*");
+                    sb.Append($" (*const COPLT_CDECL f_{method.Name})(");
                     if ((method.Flags & MethodFlags.Const) != 0) sb.Append($"const ");
                     sb.Append($"{ns_pre}{name}*");
+                    if (ret_struct_ptr) sb.Append($", {ToCppName(method.ReturnType, ns_pre)}*");
                     foreach (var param in method.Params)
                     {
                         var o = (param.Flags & ParamFlags.Out) != 0 ? "COPLT_OUT " : "";
                         sb.Append($", {o}{ToCppName(param.Type, ns_pre)} {param.Name}");
                     }
-                    sb.AppendLine($");");
+                    sb.AppendLine($") noexcept;");
                 }
                 sb.AppendLine($"}};");
+
+                #endregion
+
+                #region VirtualImpl Define
+
+                sb.AppendLine($"namespace Coplt::Internal::VirtualImpl_{Namespace}_{name}");
+                sb.AppendLine($"{{");
+                foreach (var method in a.Methods)
+                {
+                    var ret_struct_ptr = method.ReturnType.Kind.IsStruct; // todo check marshal as
+                    var ret_type = ToCppName(method.ReturnType, ns_pre);
+                    sb.Append($"    extern \"C\" {ret_type}");
+                    if (ret_struct_ptr) sb.Append("*");
+                    sb.Append($" COPLT_CDECL {method.Name}(");
+                    if ((method.Flags & MethodFlags.Const) != 0) sb.Append($"const ");
+                    sb.Append($"{ns_pre}{name}* self");
+                    if (ret_struct_ptr) sb.Append($", {ret_type}* r");
+                    var inc = 0;
+                    foreach (var param in method.Params)
+                    {
+                        var i = inc++;
+                        var o = (param.Flags & ParamFlags.Out) != 0 ? "COPLT_OUT " : "";
+                        sb.Append($", {o}{ToCppName(param.Type, ns_pre)} p{i}");
+                    }
+                    sb.AppendLine($") noexcept;");
+                }
+                sb.AppendLine($"}}");
+
+                #endregion
+
+                #region ComProxy
 
                 sb.AppendLine();
                 sb.AppendLine($"template <>");
@@ -284,12 +326,18 @@ public record CppOutput : AOutput
                 sb.AppendLine($"{{");
                 sb.AppendLine($"    using VirtualTable = VirtualTable<{ns_pre}{name}>;");
 
+                #region get_Guid
+
                 sb.AppendLine();
                 sb.AppendLine($"    static COPLT_FORCE_INLINE constexpr inline const ::Coplt::Guid& get_Guid()");
                 sb.AppendLine($"    {{");
                 sb.AppendLine($"        static ::Coplt::Guid s_guid(\"{a.Guid:D}\");");
                 sb.AppendLine($"        return s_guid;");
                 sb.AppendLine($"    }}");
+
+                #endregion
+
+                #region QueryInterface
 
                 sb.AppendLine();
                 sb.AppendLine($"    template <class Self>");
@@ -304,64 +352,32 @@ public record CppOutput : AOutput
                 sb.AppendLine($"        return ComProxy<{ns_pre}{parent}>::QueryInterface(self, guid, object);");
                 sb.AppendLine($"    }}");
 
+                #endregion
+
+                #region GetVtb
+
                 sb.AppendLine();
-                sb.AppendLine($"    template <std::derived_from<{ns_pre}{name}> Base = {ns_pre}{name}>");
-                sb.AppendLine($"    struct Proxy : ComProxy<{ns_pre}{parent}>::Proxy<Base>");
+                sb.AppendLine($"    COPLT_FORCE_INLINE");
+                sb.AppendLine($"    static const VirtualTable& GetVtb()");
                 sb.AppendLine($"    {{");
-                sb.AppendLine($"        using Super = ComProxy<{ns_pre}{parent}>::Proxy<Base>;");
-                sb.AppendLine($"        using Self = Proxy;");
-                sb.AppendLine();
-                sb.AppendLine($"    protected:");
-                sb.AppendLine($"        virtual ~Proxy() = default;");
-                sb.AppendLine();
-                sb.AppendLine($"        COPLT_FORCE_INLINE");
-                sb.AppendLine($"        static const VirtualTable& GetVtb()");
+                sb.AppendLine($"        static VirtualTable vtb");
                 sb.AppendLine($"        {{");
-                sb.AppendLine($"            static VirtualTable vtb");
-                sb.AppendLine($"            {{");
-                sb.AppendLine($"                .b = Super::GetVtb(),");
+                sb.AppendLine($"            .b = ComProxy<{ns_pre}{parent}>::GetVtb(),");
                 foreach (var method in a.Methods)
                 {
-                    sb.Append($"                .f_{method.Name} = [](");
-                    if ((method.Flags & MethodFlags.Const) != 0) sb.Append($"const ");
-                    sb.Append($"{ns_pre}{name}* self");
-                    var inc = 0;
-                    foreach (var param in method.Params)
-                    {
-                        var i = inc++;
-                        var o = (param.Flags & ParamFlags.Out) != 0 ? "COPLT_OUT " : "";
-                        sb.Append($", {o}{ToCppName(param.Type, ns_pre)} p{i}");
-                    }
-                    sb.AppendLine($")");
-                    sb.AppendLine($"                {{");
-                    sb.AppendLine($"                    #ifdef COPLT_COM_BEFORE_VIRTUAL_CALL");
-                    sb.AppendLine($"                    COPLT_COM_BEFORE_VIRTUAL_CALL({ns_pre}{name}, {method.Name})");
-                    sb.AppendLine($"                    #endif");
-                    sb.Append($"                    return static_cast<");
-                    if ((method.Flags & MethodFlags.Const) != 0) sb.Append($"const ");
-                    sb.Append($"Self*>(self)->Impl_{method.Name}(");
-                    inc = 0;
-                    foreach (var _ in method.Params)
-                    {
-                        var i = inc++;
-                        if (i != 0) sb.Append($", ");
-                        sb.Append($"p{i}");
-                    }
-                    sb.AppendLine($");");
-                    sb.AppendLine($"                    #ifdef COPLT_COM_AFTER_VIRTUAL_CALL");
-                    sb.AppendLine($"                    COPLT_COM_AFTER_VIRTUAL_CALL({ns_pre}{name}, {method.Name})");
-                    sb.AppendLine($"                    #endif");
-                    sb.AppendLine($"                }},");
+                    sb.AppendLine($"            .f_{method.Name} = VirtualImpl_{Namespace}_{name}::{method.Name},");
                 }
-                sb.AppendLine($"            }};");
-                sb.AppendLine($"            return vtb;");
                 sb.AppendLine($"        }};");
+                sb.AppendLine($"        return vtb;");
+                sb.AppendLine($"    }};");
+
+                #endregion
+
+                #region Impl
 
                 sb.AppendLine();
-                sb.AppendLine($"        explicit Proxy(const ::Coplt::Internal::VirtualTable<Base>* vtb) : Base(vtb) {{}}");
-                sb.AppendLine();
-                sb.AppendLine($"        explicit Proxy() : Super(&GetVtb()) {{}}");
-
+                sb.AppendLine($"    struct Impl : ComProxy<{ns_pre}{parent}>::Impl");
+                sb.AppendLine($"    {{");
                 if (a.Methods.Count > 0) sb.AppendLine();
                 foreach (var method in a.Methods)
                 {
@@ -376,17 +392,129 @@ public record CppOutput : AOutput
                     }
                     sb.AppendLine($"){((method.Flags & MethodFlags.Const) != 0 ? " const" : "")} = 0;");
                 }
-
                 sb.AppendLine($"    }};");
+
+                #endregion
+
+                #region Proxy
+
+                sb.AppendLine();
+                sb.AppendLine($"    template <std::derived_from<{ns_pre}{name}> Base = {ns_pre}{name}>");
+                sb.AppendLine($"    struct Proxy : Impl, Base");
+                sb.AppendLine($"    {{");
+                sb.AppendLine($"        explicit Proxy(const ::Coplt::Internal::VirtualTable<Base>* vtb) : Base(vtb) {{}}");
+                sb.AppendLine();
+                sb.AppendLine($"        explicit Proxy() : Base(&GetVtb()) {{}}");
+                sb.AppendLine($"    }};");
+
+                #endregion
 
                 sb.AppendLine($"}};");
 
-                sb.AppendLine();
+                #endregion
+
+                #region VirtualImpl Impl
+
+                sb.AppendLine($"namespace Coplt::Internal::VirtualImpl_{Namespace}_{name}");
+                sb.AppendLine($"{{");
+                foreach (var method in a.Methods)
+                {
+                    sb.AppendLine();
+                    var ret_struct_ptr = method.ReturnType.Kind.IsStruct; // todo check marshal as
+                    var ret_type = ToCppName(method.ReturnType, ns_pre);
+                    sb.Append($"    extern \"C\" inline {ret_type}");
+                    if (ret_struct_ptr) sb.Append("*");
+                    sb.Append($" COPLT_CDECL {method.Name}(");
+                    if ((method.Flags & MethodFlags.Const) != 0) sb.Append($"const ");
+                    sb.Append($"{ns_pre}{name}* self");
+                    if (ret_struct_ptr) sb.Append($", {ret_type}* r");
+                    var inc = 0;
+                    foreach (var param in method.Params)
+                    {
+                        var i = inc++;
+                        var o = (param.Flags & ParamFlags.Out) != 0 ? "COPLT_OUT " : "";
+                        sb.Append($", {o}{ToCppName(param.Type, ns_pre)} p{i}");
+                    }
+                    sb.AppendLine($") noexcept");
+                    sb.AppendLine($"    {{");
+                    if (ret_struct_ptr) { }
+                    else if (ret_type != "void") sb.AppendLine($"        {ret_type} r;");
+                    else sb.AppendLine($"        struct {{ }} r;");
+                    sb.AppendLine($"        #ifdef COPLT_COM_BEFORE_VIRTUAL_CALL");
+                    sb.AppendLine($"        COPLT_COM_BEFORE_VIRTUAL_CALL({ns_pre}{name}, {method.Name}, {ret_type})");
+                    sb.AppendLine($"        #endif");
+                    sb.Append($"        ");
+                    if (ret_struct_ptr) sb.Append($"*r = ");
+                    else if (ret_type != "void") sb.Append($"r = ");
+                    sb.Append($"::Coplt::Internal::AsImpl<{ns_pre}{name}>(self)->Impl_{method.Name}(");
+                    inc = 0;
+                    foreach (var _ in method.Params)
+                    {
+                        var i = inc++;
+                        if (i != 0) sb.Append($", ");
+                        sb.Append($"p{i}");
+                    }
+                    sb.AppendLine($");");
+                    sb.AppendLine($"        #ifdef COPLT_COM_AFTER_VIRTUAL_CALL");
+                    sb.AppendLine($"        COPLT_COM_AFTER_VIRTUAL_CALL({ns_pre}{name}, {method.Name}, {ret_type})");
+                    sb.AppendLine($"        #endif");
+                    if (ret_struct_ptr || ret_type != "void") sb.AppendLine($"        return r;");
+                    sb.AppendLine($"    }}");
+                }
+                sb.AppendLine($"}}");
+
+                #endregion
+
+                #region COPLT_COM_INTERFACE_BODY
+
                 sb.AppendLine($"#define COPLT_COM_INTERFACE_BODY_{Namespace}_{name}\\");
                 sb.AppendLine($"    using Super = {ns_pre}{parent};\\");
                 sb.AppendLine($"    using Self = {ns_pre}{name};\\");
                 sb.AppendLine($"\\");
                 sb.AppendLine($"    explicit {name}(const ::Coplt::Internal::VirtualTable<Self>* vtbl) : Super(&vtbl->b) {{}}");
+
+                #endregion
+
+                #region COPLT_COM_INTERFACE_IMPL
+
+                sb.AppendLine();
+                sb.AppendLine($"template <>");
+                sb.AppendLine($"struct ::Coplt::Internal::CallComMethod<{ns_pre}{name}>");
+                sb.AppendLine($"{{");
+                foreach (var method in a.Methods)
+                {
+                    var ret_struct_ptr = method.ReturnType.Kind.IsStruct; // todo check marshal as
+                    var ret_type = ToCppName(method.ReturnType, ns_pre);
+                    sb.Append($"    static COPLT_FORCE_INLINE {ret_type} {method.Name}(");
+                    if ((method.Flags & MethodFlags.Const) != 0) sb.Append($"const ");
+                    sb.Append($"{ns_pre}{name}* self");
+                    var inc = 0;
+                    foreach (var param in method.Params)
+                    {
+                        var i = inc++;
+                        var o = (param.Flags & ParamFlags.Out) != 0 ? "COPLT_OUT " : "";
+                        sb.Append($", {o}{ToCppName(param.Type, ns_pre)} p{i}");
+                    }
+                    sb.AppendLine($") noexcept");
+                    sb.AppendLine($"    {{");
+                    if (ret_struct_ptr) sb.AppendLine($"        {ret_type} r{{}};");
+                    sb.Append($"        ");
+                    if (ret_struct_ptr) sb.Append("return *");
+                    else if (ret_type != "void") sb.Append($"return ");
+                    sb.Append($"COPLT_COM_PVTB({name}, self)->f_{method.Name}(self");
+                    if (ret_struct_ptr) sb.Append($", &r");
+                    inc = 0;
+                    foreach (var _ in method.Params)
+                    {
+                        var i = inc++;
+                        sb.Append($", p{i}");
+                    }
+                    sb.AppendLine($");");
+                    sb.AppendLine($"    }}");
+                }
+                sb.AppendLine($"}};");
+
+                #endregion
 
                 return sb.ToString();
             }).ToList();
@@ -448,7 +576,7 @@ public record CppOutput : AOutput
                     {
                         sb.Append($", {param.Name}");
                     }
-                    sb.AppendLine($")");
+                    sb.AppendLine($");");
                 }
                 sb.AppendLine($"{space}}};");
                 return sb.ToString();

@@ -3,6 +3,7 @@ using System.Collections.Frozen;
 using System.Collections.Immutable;
 using AsmResolver.DotNet;
 using AsmResolver.DotNet.Collections;
+using AsmResolver.DotNet.Signatures;
 using AsmResolver.DotNet.Signatures.Types;
 using AsmResolver.PE.DotNet.Metadata.Tables.Rows;
 using Coplt.Com2.DefineModel;
@@ -203,6 +204,13 @@ internal class SymbolDb
                         Index = a.TargetOrReturn!.Id,
                         Flags = ToComDefine(a.Flags),
                     };
+                case TypeKind.Ref:
+                    return new TypeDeclare
+                    {
+                        Kind = DefineModel.TypeKind.Ref,
+                        Index = a.TargetOrReturn!.Id,
+                        Flags = ToComDefine(a.Flags),
+                    };
                 case TypeKind.Fn:
                     return new TypeDeclare
                     {
@@ -266,6 +274,7 @@ internal class SymbolDb
                         Name = f.Name,
                     })
                 ],
+                MarshalAs = a.MarshalAs?.Id,
             }).ToImmutableArray();
 
         #endregion
@@ -347,8 +356,7 @@ internal class SymbolDb
             var member_attr = property.FindCustomAttributes("Coplt.Com", "InterfaceMemberAttribute").FirstOrDefault();
             if (member_attr == null) continue;
             var member_index = (uint)member_attr.Signature!.FixedArguments[0].Element!;
-            var sig = property.Signature!;
-            var member_type = ExtraType(sig.ReturnType);
+            var member_type = ExtraType(property);
             var get_method = property.GetMethod;
             var set_method = property.SetMethod;
             var inc = 0u;
@@ -506,6 +514,15 @@ internal class SymbolDb
                 symbol.TargetOrReturn = target;
                 return symbol;
             }
+            case ByReferenceTypeSignature brt:
+            {
+                var target = ExtraType(brt.BaseType);
+                var symbol = Symbols.GetOrAdd($"{target.FullName}*", name => new(name));
+                if (symbol.Kind != TypeKind.Unknown) return symbol;
+                symbol.Kind = TypeKind.Ref;
+                symbol.TargetOrReturn = target;
+                return symbol;
+            }
             case GenericInstanceTypeSignature git:
             {
                 var gt = git.GenericType;
@@ -570,6 +587,18 @@ internal class SymbolDb
             return ExtraType(target);
         }
         return ExtraType(parameter.ParameterType);
+    }
+
+    private TypeSymbol ExtraType(PropertyDefinition property)
+    {
+        var com_type = property.FindCustomAttributesNoGeneric("Coplt.Com", "ComTypeAttribute`1").FirstOrDefault();
+        if (com_type != null)
+        {
+            var attr_type = (GenericInstanceTypeSignature)com_type.Constructor?.DeclaringType!.ToTypeSignature()!;
+            var target = attr_type.TypeArguments[0];
+            return ExtraType(target);
+        }
+        return ExtraType(property.Signature!.ReturnType);
     }
 
     private static DefineModel.TypeFlags ToComDefine(TypeFlags input)
@@ -651,6 +680,8 @@ public enum TypeKind
     Enum,
     // use Target
     Ptr,
+    // use Target
+    Ref,
     // use Return, Params
     Fn,
 
@@ -679,6 +710,27 @@ public enum TypeKind
     Str8,
     Str16,
     StrAny,
+}
+
+public static class TypeExtensions
+{
+    extension(TypeKind kind)
+    {
+        public bool IsStruct => kind switch
+        {
+            TypeKind.Struct => true,
+            TypeKind.Int128 or
+                TypeKind.UInt128 or
+                TypeKind.Guid or
+                TypeKind.HResult or
+                TypeKind.NSpan or
+                TypeKind.NRoSpan or
+                TypeKind.Str8 or
+                TypeKind.Str16 or
+                TypeKind.StrAny => true,
+            _ => false,
+        };
+    }
 }
 
 [Flags]
@@ -749,6 +801,7 @@ public record StructDeclareSymbol : ADeclareSymbol
     public required StructFlags Flags { get; set; }
     public required List<string> TypeParams { get; set; }
     public required List<StructField> Fields { get; set; }
+    public TypeSymbol? MarshalAs { get; set; }
 }
 
 public record struct StructField
