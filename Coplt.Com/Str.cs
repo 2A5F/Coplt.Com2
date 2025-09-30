@@ -5,6 +5,7 @@ namespace Coplt.Com;
 
 public unsafe struct Str8 : IEquatable<Str8>
 {
+    [ComType<ConstPtr<byte>>]
     public byte* Data;
     public uint Size;
 
@@ -87,6 +88,7 @@ public unsafe struct Str8 : IEquatable<Str8>
 
 public unsafe struct Str16 : IEquatable<Str16>
 {
+    [ComType<ConstPtr<char>>]
     public char* Data;
     public uint Size;
 

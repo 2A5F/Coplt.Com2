@@ -325,8 +325,7 @@ internal class SymbolDb
             if (member_attr == null) continue;
             var member_index = (uint)member_attr.Signature!.FixedArguments[0].Element!;
             var member_name = $"{method.Name}";
-            var sig = method.Signature!;
-            var ret_type = ExtraType(sig.ReturnType);
+            var ret_type = ExtraType(method);
             List<InterfaceMethodParam> imp = new();
             var is_readonly = method.FindCustomAttributes("System.Runtime.CompilerServices", "IsReadOnlyAttribute").FirstOrDefault();
             var method_flags = is_readonly is null ? MethodFlags.None : MethodFlags.Const;
@@ -536,7 +535,7 @@ internal class SymbolDb
                         if (symbol.Kind != TypeKind.Unknown) return symbol;
                         symbol.Kind = TypeKind.Ptr;
                         symbol.TargetOrReturn = target;
-                        symbol.Flags |= TypeFlags.Const;
+                        if (com_type is ComType.ConstPtr) symbol.Flags |= TypeFlags.Const;
                         return symbol;
                     }
                 }
@@ -575,6 +574,19 @@ internal class SymbolDb
             }
         }
         throw new NotSupportedException($"Unknown type: {type}");
+    }
+
+    private TypeSymbol ExtraType(MethodDefinition method)
+    {
+        var com_type = method.Parameters.ReturnParameter.Definition?.FindCustomAttributesNoGeneric("Coplt.Com", "ComTypeAttribute`1").FirstOrDefault();
+        if (com_type != null)
+        {
+            var attr_type = (GenericInstanceTypeSignature)com_type.Constructor?.DeclaringType!.ToTypeSignature()!;
+            var target = attr_type.TypeArguments[0];
+            return ExtraType(target);
+        }
+        var sig = method.Signature!;
+        return ExtraType(sig.ReturnType);
     }
 
     private TypeSymbol ExtraType(Parameter parameter)

@@ -31,19 +31,19 @@ public record CppOutput : AOutput
                 return $"{ns}{symbol.Name}";
             case TypeKind.Ptr:
             {
-                var c = (symbol.Flags & TypeFlags.Const) != 0 ? "const" : "";
-                return $"{c}{ToCppName(symbol.TargetOrReturn!, ns)}*";
+                var c = (symbol.Flags & TypeFlags.Const) != 0 ? " const" : "";
+                return $"{ToCppName(symbol.TargetOrReturn!, ns)}{c}*";
             }
             case TypeKind.Ref:
             {
-                var c = (symbol.Flags & TypeFlags.Const) != 0 ? "const" : "";
-                return $"{c}{ToCppName(symbol.TargetOrReturn!, ns)}&";
+                var c = (symbol.Flags & TypeFlags.Const) != 0 ? " const" : "";
+                return $"{ToCppName(symbol.TargetOrReturn!, ns)}{c}&";
             }
             case TypeKind.Fn:
             {
-                var c = (symbol.Flags & TypeFlags.Const) != 0 ? "const" : "";
+                var c = (symbol.Flags & TypeFlags.Const) != 0 ? " const" : "";
                 var arg = symbol.GenericsOrParams.IsDefaultOrEmpty ? "" : $", {string.Join(", ", symbol.GenericsOrParams.Select(a => ToCppName(a, ns)))}";
-                return $"{c}::Coplt::Func<{ToCppName(symbol.TargetOrReturn!, ns)}{arg}>*";
+                return $"::Coplt::Func<{ToCppName(symbol.TargetOrReturn!, ns)}{arg}>{c}*";
             }
             case TypeKind.Void:
                 return "void";
