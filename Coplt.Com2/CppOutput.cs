@@ -115,31 +115,6 @@ public record CppOutput : AOutput
         var space = Namespace is null ? "" : "    ";
         var ns_pre = Namespace is null ? "" : $"::{Namespace}::";
 
-        #region Enums
-
-        var enums = db.Enums
-            .AsParallel()
-            .OrderBy(a => a.Key, StringComparer.Ordinal)
-            .Select(a => a.Value)
-            .Select(a =>
-            {
-                var sb = new StringBuilder();
-                var name = a.Name.Split('.', '+').Last();
-                var underlying = ToCppName(a.UnderlyingType, ns_pre);
-                sb.AppendLine();
-                sb.AppendLine($"{space}enum class {name} : {underlying}");
-                sb.AppendLine($"{space}{{");
-                foreach (var item in a.Items)
-                {
-                    sb.AppendLine($"{space}    {item.Name} = {item.Value},");
-                }
-                sb.AppendLine($"{space}}};");
-                return sb.ToString();
-            }).ToList();
-        root_sb.AppendJoin("", enums);
-
-        #endregion
-
         #region Structs pre define
 
         var structs_pre_define = db.Structs
@@ -167,6 +142,47 @@ public record CppOutput : AOutput
                 return sb.ToString();
             }).ToList();
         root_sb.AppendJoin("", structs_pre_define);
+
+        #endregion
+
+        #region Interfaces pre define
+
+        var interfaces_pre_define = db.Interfaces
+            .AsParallel()
+            .OrderBy(a => a.Key, StringComparer.Ordinal)
+            .Select(a => a.Value)
+            .Select(a => $"{space}struct {a.Name};").ToList();
+        root_sb.AppendLine();
+        root_sb.AppendJoin("\n\n", interfaces_pre_define);
+        root_sb.AppendLine();
+
+        #endregion
+
+        #region Enums
+
+        var enums = db.Enums
+            .AsParallel()
+            .OrderBy(a => a.Key, StringComparer.Ordinal)
+            .Select(a => a.Value)
+            .Select(a =>
+            {
+                var sb = new StringBuilder();
+                var name = a.Name.Split('.', '+').Last();
+                var underlying = ToCppName(a.UnderlyingType, ns_pre);
+                sb.AppendLine();
+                if ((a.Flags & EnumFlags.Flags) != 0)
+                    sb.AppendLine($"{space}COPLT_ENUM_FLAGS({name}, {underlying})");
+                else
+                    sb.AppendLine($"{space}enum class {name} : {underlying}");
+                sb.AppendLine($"{space}{{");
+                foreach (var item in a.Items)
+                {
+                    sb.AppendLine($"{space}    {item.Name} = {item.Value},");
+                }
+                sb.AppendLine($"{space}}};");
+                return sb.ToString();
+            }).ToList();
+        root_sb.AppendJoin("", enums);
 
         #endregion
 
@@ -585,7 +601,6 @@ public record CppOutput : AOutput
         root_sb.AppendJoin("", interfaces);
 
         #endregion
-
 
         if (Namespace is not null) root_sb.AppendLine($"\n}} // namespace {Namespace}");
         root_sb.AppendLine();
