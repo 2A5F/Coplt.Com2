@@ -74,9 +74,9 @@ public record CppOutput : AOutput
             case TypeKind.UIntPtr:
                 return "::Coplt::usize";
             case TypeKind.Float:
-                return "::Coplt::float";
+                return "::Coplt::f32";
             case TypeKind.Double:
-                return "::Coplt::double";
+                return "::Coplt::f64";
             case TypeKind.Char8:
                 return "::Coplt::char8";
             case TypeKind.Char16:
@@ -174,7 +174,8 @@ public record CppOutput : AOutput
 
         var structs = db.Structs
             .AsParallel()
-            .OrderBy(a => a.Key, StringComparer.Ordinal)
+            .OrderByDescending(a => a.Value.Deep)
+            .ThenBy(a => a.Key, StringComparer.Ordinal)
             .Select(a => a.Value)
             .Select(a =>
             {

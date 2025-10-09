@@ -3,7 +3,6 @@ using System.Collections.Frozen;
 using System.Collections.Immutable;
 using AsmResolver.DotNet;
 using AsmResolver.DotNet.Collections;
-using AsmResolver.DotNet.Signatures;
 using AsmResolver.DotNet.Signatures.Types;
 using AsmResolver.PE.DotNet.Metadata.Tables.Rows;
 using Coplt.Com2.DefineModel;
@@ -71,6 +70,23 @@ internal class SymbolDb
         foreach (var type in interface_marks)
         {
             ExtraInterface(type, true);
+        }
+
+        foreach (var sds in Structs.Values)
+        {
+            DeepStruct(sds, 0);
+        }
+    }
+
+    private void DeepStruct(StructDeclareSymbol sds, int deep)
+    {
+        sds.Deep = Math.Max(sds.Deep, deep);
+        foreach (var field in sds.Fields)
+        {
+            if (field.Type is { Kind: TypeKind.Struct, Declare: StructDeclareSymbol child })
+            {
+                DeepStruct(child, deep + 1);
+            }
         }
     }
 
@@ -814,6 +830,7 @@ public record StructDeclareSymbol : ADeclareSymbol
     public required List<string> TypeParams { get; set; }
     public required List<StructField> Fields { get; set; }
     public TypeSymbol? MarshalAs { get; set; }
+    public int Deep;
 }
 
 public record struct StructField
