@@ -15,7 +15,7 @@ pub enum HResultE {
     InvalidArg = 0x80070057,
 }
 
-#[repr(C)]
+#[repr(transparent)]
 #[derive(Debug, Clone, Copy, PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct HResult {
     pub value: i32,

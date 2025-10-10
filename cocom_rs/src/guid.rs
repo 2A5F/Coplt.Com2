@@ -1,5 +1,5 @@
 use core::hash::Hash;
-use std::str::FromStr;
+use core::str::FromStr;
 
 #[repr(C)]
 #[derive(Debug, Clone, Copy, Eq)]

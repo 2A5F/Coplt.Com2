@@ -1,90 +1,79 @@
-use crate::{IUnknown, IWeak};
-use core::ops::Deref;
-use std::ops::DerefMut;
+use crate::{IUnknown, IWeak, impls};
+use core::{
+    fmt::{Debug, Display},
+    mem::ManuallyDrop,
+    ops::{Deref, DerefMut},
+    ptr::NonNull,
+};
 
-#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct ComPtr<T: AsRef<IUnknown>> {
-    ptr: *mut T,
+#[derive(PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct ComPtr<T: impls::RefCount> {
+    ptr: NonNull<T>,
     _p: core::marker::PhantomData<T>,
 }
 
-impl<T: AsRef<IUnknown>> ComPtr<T> {
-    pub unsafe fn create(ptr: *mut T) -> Self {
+impl<T: impls::RefCount> ComPtr<T> {
+    pub unsafe fn new(ptr: NonNull<T>) -> Self {
         Self {
             ptr,
             _p: core::marker::PhantomData,
         }
     }
 
-    pub fn ptr(&self) -> *mut T {
+    pub unsafe fn create(ptr: *mut T) -> Option<Self> {
+        Some(Self {
+            ptr: NonNull::new(ptr)?,
+            _p: core::marker::PhantomData,
+        })
+    }
+
+    pub fn ptr(&self) -> NonNull<T> {
         self.ptr
     }
 }
 
-impl<T: AsRef<IUnknown>> Default for ComPtr<T> {
-    fn default() -> Self {
-        Self {
-            ptr: core::ptr::null_mut(),
-            _p: core::marker::PhantomData,
-        }
-    }
-}
-
-impl<T: AsRef<IUnknown>> Drop for ComPtr<T> {
+impl<T: impls::RefCount> Drop for ComPtr<T> {
     fn drop(&mut self) {
-        if !self.ptr.is_null() {
-            unsafe { (*self.ptr).as_ref().Release() };
-        }
+        unsafe { self.ptr.as_ref().Release() };
     }
 }
 
-impl<T: AsRef<IUnknown>> Clone for ComPtr<T> {
+impl<T: impls::RefCount> Clone for ComPtr<T> {
     fn clone(&self) -> Self {
-        unsafe { (*self.ptr).as_ref().AddRef() };
+        unsafe { self.ptr.as_ref().AddRef() };
         Self {
-            ptr: self.ptr.clone(),
-            _p: self._p.clone(),
+            ptr: self.ptr,
+            _p: self._p,
         }
     }
 }
 
-impl<T: AsRef<IUnknown>> Deref for ComPtr<T> {
+impl<T: impls::RefCount> Deref for ComPtr<T> {
     type Target = T;
 
     fn deref(&self) -> &Self::Target {
-        unsafe { &*self.ptr }
+        unsafe { self.ptr.as_ref() }
     }
 }
 
-impl<T: AsRef<IUnknown>> DerefMut for ComPtr<T> {
+impl<T: impls::RefCount> DerefMut for ComPtr<T> {
     fn deref_mut(&mut self) -> &mut Self::Target {
-        unsafe { &mut *self.ptr }
+        unsafe { self.ptr.as_mut() }
     }
 }
 
-impl<T: AsRef<IUnknown>> ComPtr<T> {
-    pub fn is_null(&self) -> bool {
-        self.ptr.is_null()
-    }
-
-    pub fn put(&mut self) -> &mut *mut T {
-        &mut self.ptr
-    }
-
-    pub fn leak(mut self) -> *mut T {
-        core::mem::replace(&mut self.ptr, core::ptr::null_mut())
+impl<T: impls::RefCount> ComPtr<T> {
+    pub fn leak(self) -> *mut T {
+        let this = ManuallyDrop::new(self);
+        this.ptr.as_ptr()
     }
 }
 
-impl<T: AsRef<IWeak> + AsRef<IUnknown>> ComPtr<T> {
+impl<T: impls::WeakRefCount> ComPtr<T> {
     pub fn downgrade(&self) -> Option<ComWeak<T>> {
-        if self.ptr.is_null() {
-            return None;
-        }
         unsafe {
-            let r: &IWeak = (*self.ptr).as_ref();
-            if r.TryDowngrade() {
-                Some(ComWeak::create(self.ptr))
+            if self.ptr.as_ref().TryDowngrade() {
+                Some(ComWeak::new(self.ptr))
             } else {
                 None
             }
@@ -92,92 +81,101 @@ impl<T: AsRef<IWeak> + AsRef<IUnknown>> ComPtr<T> {
     }
 }
 
-#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
-pub struct ComWeak<T: AsRef<IWeak>> {
-    ptr: *mut T,
+impl<T: impls::RefCount + Debug> Debug for ComPtr<T> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        self.deref().fmt(f)
+    }
+}
+
+impl<T: impls::RefCount + Display> Display for ComPtr<T> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        self.deref().fmt(f)
+    }
+}
+
+#[derive(PartialEq, Eq, PartialOrd, Ord, Hash)]
+pub struct ComWeak<T: impls::WeakRefCount> {
+    ptr: NonNull<T>,
     _p: core::marker::PhantomData<T>,
 }
 
-impl<T: AsRef<IWeak>> ComWeak<T> {
-    pub unsafe fn create(ptr: *mut T) -> Self {
+impl<T: impls::WeakRefCount> ComWeak<T> {
+    pub unsafe fn new(ptr: NonNull<T>) -> Self {
         Self {
             ptr,
             _p: core::marker::PhantomData,
         }
     }
 
-    pub fn ptr(&self) -> *mut T {
+    pub unsafe fn create(ptr: *mut T) -> Option<Self> {
+        Some(Self {
+            ptr: NonNull::new(ptr)?,
+            _p: core::marker::PhantomData,
+        })
+    }
+
+    pub fn ptr(&self) -> NonNull<T> {
         self.ptr
     }
 }
 
-impl<T: AsRef<IWeak>> Default for ComWeak<T> {
-    fn default() -> Self {
-        Self {
-            ptr: core::ptr::null_mut(),
-            _p: core::marker::PhantomData,
-        }
-    }
-}
-
-impl<T: AsRef<IWeak>> Drop for ComWeak<T> {
+impl<T: impls::WeakRefCount> Drop for ComWeak<T> {
     fn drop(&mut self) {
-        if !self.ptr.is_null() {
-            unsafe { (*self.ptr).as_ref().ReleaseWeak() };
-        }
+        unsafe { self.ptr.as_ref().ReleaseWeak() };
     }
 }
 
-impl<T: AsRef<IWeak>> Clone for ComWeak<T> {
+impl<T: impls::WeakRefCount> Clone for ComWeak<T> {
     fn clone(&self) -> Self {
-        unsafe { (*self.ptr).as_ref().AddRefWeak() };
+        unsafe { self.ptr.as_ref().AddRefWeak() };
         Self {
-            ptr: self.ptr.clone(),
-            _p: self._p.clone(),
+            ptr: self.ptr,
+            _p: self._p,
         }
     }
 }
 
-impl<T: AsRef<IWeak>> Deref for ComWeak<T> {
+impl<T: impls::WeakRefCount> Deref for ComWeak<T> {
     type Target = T;
 
     fn deref(&self) -> &Self::Target {
-        unsafe { &*self.ptr }
+        unsafe { self.ptr.as_ref() }
     }
 }
 
-impl<T: AsRef<IWeak>> DerefMut for ComWeak<T> {
+impl<T: impls::WeakRefCount> DerefMut for ComWeak<T> {
     fn deref_mut(&mut self) -> &mut Self::Target {
-        unsafe { &mut *self.ptr }
+        unsafe { self.ptr.as_mut() }
     }
 }
 
-impl<T: AsRef<IWeak>> ComWeak<T> {
-    pub fn is_null(&self) -> bool {
-        self.ptr.is_null()
-    }
-
-    pub fn put(&mut self) -> &mut *mut T {
-        &mut self.ptr
-    }
-
-    pub fn leak(mut self) -> *mut T {
-        core::mem::replace(&mut self.ptr, core::ptr::null_mut())
+impl<T: impls::WeakRefCount> ComWeak<T> {
+    pub fn leak(self) -> *mut T {
+        let this = ManuallyDrop::new(self);
+        this.ptr.as_ptr()
     }
 }
 
-impl<T: AsRef<IWeak> + AsRef<IUnknown>> ComWeak<T> {
+impl<T: impls::WeakRefCount> ComWeak<T> {
     pub fn upgrade(&self) -> Option<ComPtr<T>> {
-        if self.ptr.is_null() {
-            return None;
-        }
         unsafe {
-            let r: &IWeak = (*self.ptr).as_ref();
-            if r.TryUpgrade() {
-                Some(ComPtr::create(self.ptr))
+            if self.ptr.as_ref().TryUpgrade() {
+                Some(ComPtr::new(self.ptr))
             } else {
                 None
             }
         }
+    }
+}
+
+impl<T: impls::WeakRefCount + Debug> Debug for ComWeak<T> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        self.deref().fmt(f)
+    }
+}
+
+impl<T: impls::WeakRefCount + Display> Display for ComWeak<T> {
+    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+        self.deref().fmt(f)
     }
 }
