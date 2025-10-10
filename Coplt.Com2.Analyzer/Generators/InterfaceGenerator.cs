@@ -177,20 +177,20 @@ public class InterfaceGenerator : IIncrementalGenerator
                 }
                 var args = new List<Param>();
                 var sym = semantic_model.GetDeclaredSymbol(method)!;
-                if (!IsUnmanaged(sym.ReturnType))
-                {
-                    var desc = Utils.MakeError(Id, Strings.Get("Generator.Interface.Error.Managed"));
-                    varying.AddDiagnostic(Diagnostic.Create(desc, method.ReturnType.GetLocation()));
-                }
+                // if (!IsUnmanaged(sym.ReturnType))
+                // {
+                //     var desc = Utils.MakeError(Id, Strings.Get("Generator.Interface.Error.Managed"));
+                //     varying.AddDiagnostic(Diagnostic.Create(desc, method.ReturnType.GetLocation()));
+                // }
                 var pi = 0;
                 foreach (var p in sym.Parameters)
                 {
                     var i = pi++;
-                    if (!IsUnmanaged(p.Type))
-                    {
-                        var desc = Utils.MakeError(Id, Strings.Get("Generator.Interface.Error.Managed"));
-                        varying.AddDiagnostic(Diagnostic.Create(desc, method.ParameterList.Parameters[i].GetLocation()));
-                    }
+                    // if (!IsUnmanaged(p.Type))
+                    // {
+                    //     var desc = Utils.MakeError(Id, Strings.Get("Generator.Interface.Error.Managed"));
+                    //     varying.AddDiagnostic(Diagnostic.Create(desc, method.ParameterList.Parameters[i].GetLocation()));
+                    // }
                     args.Add(new()
                     {
                         Name = p.Name,

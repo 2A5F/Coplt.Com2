@@ -32,6 +32,7 @@ internal class SymbolDb
 
         Dictionary<string, TypeSymbol> dict = new();
         TryAddSymbol(dict, new("Coplt.Com.HResult") { Kind = TypeKind.HResult });
+        TryAddSymbol(dict, new("Coplt.Com.OpaqueTypes.ComVoid") { Kind = TypeKind.Void });
         TryAddSymbol(dict, new("System.Void") { Kind = TypeKind.Void });
         TryAddSymbol(dict, new("System.Boolean") { Kind = TypeKind.Bool });
         TryAddSymbol(dict, new("System.Byte") { Kind = TypeKind.UInt8 });
@@ -481,8 +482,7 @@ internal class SymbolDb
             foreach (var field in type.Fields)
             {
                 if ((field.Attributes & FieldAttributes.Static) != 0) continue;
-                var sig = field.Signature!;
-                var ft = ExtraType(sig.FieldType);
+                var ft = ExtraType(field);
                 decl.Fields.Add(new()
                 {
                     Type = ft,
@@ -498,7 +498,8 @@ internal class SymbolDb
         var full_name = type.FullName;
         if (!type.IsValueType) throw new NotSupportedException($"Reference type is not support: {type}");
         if (type.IsByRefLike) throw new NotSupportedException($"ByRef type is not support: {type}");
-        var symbol = Symbols.GetOrAdd(full_name, name => StaticSymbols.TryGetValue(name, out var r) ? r : new(name));
+        if (StaticSymbols.TryGetValue(full_name, out var symbol)) return symbol;
+        symbol = Symbols.GetOrAdd(full_name, name => StaticSymbols.TryGetValue(name, out var r) ? r : new(name));
         if (symbol.Kind != TypeKind.Unknown) return symbol;
         if (type.FindCustomAttributes("Coplt.Com", "InterfaceAttribute").Any())
         {
@@ -627,6 +628,18 @@ internal class SymbolDb
             return ExtraType(target);
         }
         return ExtraType(property.Signature!.ReturnType);
+    }
+
+    private TypeSymbol ExtraType(FieldDefinition field)
+    {
+        var com_type = field.FindCustomAttributesNoGeneric("Coplt.Com", "ComTypeAttribute`1").FirstOrDefault();
+        if (com_type != null)
+        {
+            var attr_type = (GenericInstanceTypeSignature)com_type.Constructor?.DeclaringType!.ToTypeSignature()!;
+            var target = attr_type.TypeArguments[0];
+            return ExtraType(target);
+        }
+        return ExtraType(field.Signature!.FieldType);
     }
 
     private static DefineModel.TypeFlags ToComDefine(TypeFlags input)
