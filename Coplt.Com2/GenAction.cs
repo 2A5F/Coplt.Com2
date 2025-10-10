@@ -62,6 +62,9 @@ public class GenAction(Option<FileInfo> ConfigPath) : AsynchronousCommandLineAct
                 case CppOutput cpp:
                     await cpp.Output(db);
                     break;
+                case RustOutput rust:
+                    await rust.Output(db);
+                    break;
                 default:
                     await Utils.LogError($"unknown output type: {output}");
                     break;

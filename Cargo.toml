@@ -1,0 +1,3 @@
+[workspace]
+members = ["cocom_rs"]
+resolver = "3"

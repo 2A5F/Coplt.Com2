@@ -35,12 +35,17 @@ public record Config
         new CppOutput
         {
             Path = "./path.to.header.file.dir",
+        },
+        new RustOutput
+        {
+            Path = "./path.to.mod.file.rs",
         }
     ];
 }
 
 [JsonDerivedType(typeof(JsonOutput), typeDiscriminator: "json")]
 [JsonDerivedType(typeof(CppOutput), typeDiscriminator: "cpp")]
+[JsonDerivedType(typeof(RustOutput), typeDiscriminator: "rust")]
 [JsonPolymorphic(TypeDiscriminatorPropertyName = "type")]
 public abstract record AOutput
 {
