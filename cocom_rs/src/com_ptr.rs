@@ -1,10 +1,16 @@
-use crate::{IUnknown, IWeak, impls};
+use crate::{IUnknown, IWeak, impls, object::WeakObject};
 use core::{
     fmt::{Debug, Display},
     mem::ManuallyDrop,
     ops::{Deref, DerefMut},
     ptr::NonNull,
 };
+
+pub trait Upcast<T, U> {
+    type Output;
+
+    fn upcast(self) -> Self::Output;
+}
 
 #[derive(PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct ComPtr<T: impls::RefCount> {
@@ -93,6 +99,26 @@ impl<T: impls::RefCount + Display> Display for ComPtr<T> {
     }
 }
 
+impl<U: impls::RefCount, T: impls::RefCount + impls::Inherit<U>> Upcast<T, U> for ComPtr<T> {
+    type Output = ComPtr<U>;
+
+    fn upcast(self) -> Self::Output {
+        let value = self.leak();
+        Self::Output {
+            ptr: unsafe { NonNull::new_unchecked((*value).as_ref() as *const U as *mut U) },
+            _p: core::marker::PhantomData,
+        }
+    }
+}
+
+impl<U: impls::RefCount, T: impls::RefCount + impls::Inherit<U>> Upcast<T, U> for &ComPtr<T> {
+    type Output = ComPtr<U>;
+
+    fn upcast(self) -> Self::Output {
+        self.clone().upcast()
+    }
+}
+
 #[derive(PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct ComWeak<T: impls::WeakRefCount> {
     ptr: NonNull<T>,
@@ -177,5 +203,29 @@ impl<T: impls::WeakRefCount + Debug> Debug for ComWeak<T> {
 impl<T: impls::WeakRefCount + Display> Display for ComWeak<T> {
     fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
         self.deref().fmt(f)
+    }
+}
+
+impl<U: impls::WeakRefCount, T: impls::WeakRefCount + impls::Inherit<U>> Upcast<T, U>
+    for ComWeak<T>
+{
+    type Output = ComWeak<U>;
+
+    fn upcast(self) -> Self::Output {
+        let value = self.leak();
+        Self::Output {
+            ptr: unsafe { NonNull::new_unchecked((*value).as_ref() as *const U as *mut U) },
+            _p: core::marker::PhantomData,
+        }
+    }
+}
+
+impl<U: impls::WeakRefCount, T: impls::WeakRefCount + impls::Inherit<U>> Upcast<T, U>
+    for &ComWeak<T>
+{
+    type Output = ComWeak<U>;
+
+    fn upcast(self) -> Self::Output {
+        self.clone().upcast()
     }
 }

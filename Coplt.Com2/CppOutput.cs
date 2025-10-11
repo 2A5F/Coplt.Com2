@@ -364,6 +364,7 @@ public record CppOutput : AOutput
                 sb.AppendLine($"        if (guid == guid_of<{ns_pre}{name}>())");
                 sb.AppendLine($"        {{");
                 sb.AppendLine($"            object = const_cast<void*>(static_cast<const void*>(static_cast<const {ns_pre}{name}*>(self)));");
+                sb.AppendLine($"            self->AddRef();");
                 sb.AppendLine($"            return ::Coplt::HResultE::Ok;");
                 sb.AppendLine($"        }}");
                 sb.AppendLine($"        return ComProxy<{ns_pre}{parent}>::QueryInterface(self, guid, object);");

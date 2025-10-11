@@ -15,11 +15,11 @@ use crate::{
 #[repr(C)]
 #[derive(Debug)]
 pub struct ComObject<T> {
-    value: T,
-    strong: AtomicU32,
+    pub(crate) value: T,
+    pub(crate) strong: AtomicU32,
 }
 
-impl<T: impls::QueryInterface + impls::IUnknown> ComObject<T> {
+impl<T: impls::ObjectQueryInterface + impls::IUnknown> ComObject<T> {
     pub fn new(value: T) -> ComPtr<Self> {
         unsafe { ComPtr::new(Self::alloc(value)) }
     }
@@ -54,13 +54,15 @@ impl<T> ComObject<T> {
     }
 }
 
-impl<T: impls::QueryInterface + impls::IUnknown> impls::QueryInterface for ComObject<T> {
+impl<T: impls::ObjectQueryInterface<Object = Self> + impls::IUnknown> impls::QueryInterface
+    for ComObject<T>
+{
     fn QueryInterface(&self, guid: &Guid, out: &mut *mut ()) -> HResult {
-        self.value.QueryInterface(guid, out)
+        T::QueryInterface(self, guid, out)
     }
 }
 
-impl<T: impls::QueryInterface + impls::IUnknown> impls::RefCount for ComObject<T> {
+impl<T: impls::ObjectQueryInterface + impls::IUnknown> impls::RefCount for ComObject<T> {
     fn AddRef(&self) -> u32 {
         unsafe { self.AddRef() }
     }
@@ -84,15 +86,28 @@ impl<T> DerefMut for ComObject<T> {
     }
 }
 
+impl<T> AsRef<T> for ComObject<T> {
+    fn as_ref(&self) -> &T {
+        &**self
+    }
+}
+
+impl<T> AsMut<T> for ComObject<T> {
+    fn as_mut(&mut self) -> &mut T {
+        &mut **self
+    }
+}
+
+unsafe impl<T> impls::Inherit<T> for ComObject<T> {}
+
 #[repr(C)]
 #[derive(Debug)]
 pub struct WeakObject<T> {
-    value: UnsafeCell<ManuallyDrop<T>>,
-    strong: AtomicU32,
-    weak: AtomicU32,
+    pub(crate) value: UnsafeCell<ManuallyDrop<ComObject<T>>>,
+    pub(crate) weak: AtomicU32,
 }
 
-impl<T: impls::QueryInterface + impls::IWeak> WeakObject<T> {
+impl<T: impls::ObjectQueryInterface + impls::IWeak> WeakObject<T> {
     pub fn new(value: T) -> ComWeak<Self> {
         unsafe { ComWeak::new(Self::alloc(value)) }
     }
@@ -102,8 +117,10 @@ impl<T> WeakObject<T> {
     pub unsafe fn alloc(value: T) -> NonNull<Self> {
         unsafe {
             NonNull::new_unchecked(Box::leak(Box::new(Self {
-                value: UnsafeCell::new(ManuallyDrop::new(value)),
-                strong: AtomicU32::new(1),
+                value: UnsafeCell::new(ManuallyDrop::new(ComObject {
+                    value,
+                    strong: AtomicU32::new(1),
+                })),
                 weak: AtomicU32::new(1),
             })))
         }
@@ -178,13 +195,15 @@ impl<T> WeakObject<T> {
     }
 }
 
-impl<T: impls::QueryInterface + impls::IWeak> impls::QueryInterface for WeakObject<T> {
+impl<T: impls::ObjectQueryInterface<Object = Self> + impls::IWeak> impls::QueryInterface
+    for WeakObject<T>
+{
     fn QueryInterface(&self, guid: &Guid, out: &mut *mut ()) -> HResult {
-        (**self).QueryInterface(guid, out)
+        T::QueryInterface(self, guid, out)
     }
 }
 
-impl<T: impls::QueryInterface + impls::IWeak> impls::RefCount for WeakObject<T> {
+impl<T: impls::ObjectQueryInterface + impls::IWeak> impls::RefCount for WeakObject<T> {
     fn AddRef(&self) -> u32 {
         unsafe { self.AddRef() }
     }
@@ -194,7 +213,7 @@ impl<T: impls::QueryInterface + impls::IWeak> impls::RefCount for WeakObject<T> 
     }
 }
 
-impl<T: impls::QueryInterface + impls::IWeak> impls::WeakRefCount for WeakObject<T> {
+impl<T: impls::ObjectQueryInterface + impls::IWeak> impls::WeakRefCount for WeakObject<T> {
     fn AddRefWeak(&self) -> u32 {
         unsafe { self.AddRefWeak() }
     }
@@ -213,7 +232,7 @@ impl<T: impls::QueryInterface + impls::IWeak> impls::WeakRefCount for WeakObject
 }
 
 impl<T> Deref for WeakObject<T> {
-    type Target = T;
+    type Target = ComObject<T>;
 
     fn deref(&self) -> &Self::Target {
         unsafe { &*self.value.get() }
@@ -225,3 +244,17 @@ impl<T> DerefMut for WeakObject<T> {
         self.value.get_mut()
     }
 }
+
+impl<T> AsRef<T> for WeakObject<T> {
+    fn as_ref(&self) -> &T {
+        &**self
+    }
+}
+
+impl<T> AsMut<T> for WeakObject<T> {
+    fn as_mut(&mut self) -> &mut T {
+        &mut **self
+    }
+}
+
+unsafe impl<T> impls::Inherit<T> for WeakObject<T> {}

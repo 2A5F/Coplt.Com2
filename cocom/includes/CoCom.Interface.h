@@ -157,6 +157,7 @@ namespace Coplt
             if (guid == guid_of<IUnknown>())
             {
                 object = const_cast<void*>(static_cast<const void*>(static_cast<const IUnknown*>(self)));
+                self->AddRef();
                 return HResultE::Ok;
             }
             return HResultE::NoInterface;
@@ -321,6 +322,7 @@ namespace Coplt
             if (guid == guid_of<IWeak>())
             {
                 object = const_cast<void*>(static_cast<const void*>(static_cast<const IWeak*>(self)));
+                self->AddRef();
                 return HResultE::Ok;
             }
             return ComProxy<IUnknown>::QueryInterface(self, guid, object);
