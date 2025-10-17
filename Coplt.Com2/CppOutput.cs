@@ -15,7 +15,7 @@ public record CppOutput : AOutput
         await Task.WhenAll(GenTypes(db), GenDetails(db), GenInterfaces(db));
     }
 
-    internal static string ToCppName(TypeSymbol symbol, string ns)
+    internal static string ToCppName(TypeSymbol symbol, string ns, bool marshal)
     {
         switch (symbol.Kind)
         {
@@ -25,25 +25,27 @@ public record CppOutput : AOutput
                 return $"T{symbol.Index}";
             case TypeKind.Struct:
                 if (!symbol.GenericsOrParams.IsDefaultOrEmpty)
-                    return $"{ns}{symbol.Name}<{string.Join(", ", symbol.GenericsOrParams.Select(a => ToCppName(a, ns)))}>";
+                    return $"{ns}{symbol.Name}<{string.Join(", ", symbol.GenericsOrParams.Select(a => ToCppName(a, ns, marshal)))}>";
                 return $"{ns}{symbol.Name}";
             case TypeKind.Enum:
                 return $"{ns}{symbol.Name}";
             case TypeKind.Ptr:
             {
                 var c = (symbol.Flags & TypeFlags.Const) != 0 ? " const" : "";
-                return $"{ToCppName(symbol.TargetOrReturn!, ns)}{c}*";
+                return $"{ToCppName(symbol.TargetOrReturn!, ns, marshal)}{c}*";
             }
             case TypeKind.Ref:
             {
                 var c = (symbol.Flags & TypeFlags.Const) != 0 ? " const" : "";
-                return $"{ToCppName(symbol.TargetOrReturn!, ns)}{c}&";
+                return $"{ToCppName(symbol.TargetOrReturn!, ns, marshal)}{c}&";
             }
             case TypeKind.Fn:
             {
                 var c = (symbol.Flags & TypeFlags.Const) != 0 ? " const" : "";
-                var arg = symbol.GenericsOrParams.IsDefaultOrEmpty ? "" : $", {string.Join(", ", symbol.GenericsOrParams.Select(a => ToCppName(a, ns)))}";
-                return $"::Coplt::Func<{ToCppName(symbol.TargetOrReturn!, ns)}{arg}>{c}*";
+                var arg = symbol.GenericsOrParams.IsDefaultOrEmpty
+                    ? ""
+                    : $", {string.Join(", ", symbol.GenericsOrParams.Select(a => ToCppName(a, ns, marshal)))}";
+                return $"::Coplt::Func<{ToCppName(symbol.TargetOrReturn!, ns, marshal)}{arg}>{c}*";
             }
             case TypeKind.Void:
                 return "void";
@@ -84,6 +86,7 @@ public record CppOutput : AOutput
             case TypeKind.Guid:
                 return "::Coplt::Guid";
             case TypeKind.HResult:
+                if (marshal) return "::Coplt::i32";
                 return "::Coplt::HResult";
             case TypeKind.NSpan:
                 break;
@@ -99,6 +102,20 @@ public record CppOutput : AOutput
                 throw new ArgumentOutOfRangeException();
         }
         return "ERROR";
+    }
+
+    internal static bool IsMarshalAs(TypeSymbol symbol)
+    {
+        switch (symbol.Kind)
+        {
+            case TypeKind.Struct:
+                // todo
+                break;
+
+            case TypeKind.HResult:
+                return true;
+        }
+        return false;
     }
 
     internal async Task GenTypes(SymbolDb db)
@@ -168,7 +185,7 @@ public record CppOutput : AOutput
             {
                 var sb = new StringBuilder();
                 var name = a.Name.Split('.', '+').Last();
-                var underlying = ToCppName(a.UnderlyingType, ns_pre);
+                var underlying = ToCppName(a.UnderlyingType, ns_pre, false);
                 sb.AppendLine();
                 if ((a.Flags & EnumFlags.Flags) != 0)
                     sb.AppendLine($"{space}COPLT_ENUM_FLAGS({name}, {underlying})");
@@ -214,7 +231,7 @@ public record CppOutput : AOutput
                 sb.AppendLine($"{space}{{");
                 foreach (var field in a.Fields)
                 {
-                    sb.AppendLine($"{space}    {ToCppName(field.Type, ns_pre)} {field.Name};");
+                    sb.AppendLine($"{space}    {ToCppName(field.Type, ns_pre, false)} {field.Name};");
                 }
                 sb.AppendLine($"{space}}};");
                 return sb.ToString();
@@ -290,17 +307,17 @@ public record CppOutput : AOutput
                 sb.AppendLine($"    VirtualTable<{ns_pre}{parent}> b;");
                 foreach (var method in a.Methods)
                 {
-                    var ret_struct_ptr = method.ReturnType.Kind.IsStruct; // todo check marshal as
-                    sb.Append($"    {ToCppName(method.ReturnType, ns_pre)}");
+                    var ret_struct_ptr = method.ReturnType.Kind.IsStruct && !IsMarshalAs(method.ReturnType);
+                    sb.Append($"    {ToCppName(method.ReturnType, ns_pre, true)}");
                     if (ret_struct_ptr) sb.Append("*");
                     sb.Append($" (*const COPLT_CDECL f_{method.Name})(");
                     if ((method.Flags & MethodFlags.Const) != 0) sb.Append($"const ");
                     sb.Append($"{ns_pre}{name}*");
-                    if (ret_struct_ptr) sb.Append($", {ToCppName(method.ReturnType, ns_pre)}*");
+                    if (ret_struct_ptr) sb.Append($", {ToCppName(method.ReturnType, ns_pre, true)}*");
                     foreach (var param in method.Params)
                     {
                         var o = (param.Flags & ParamFlags.Out) != 0 ? "COPLT_OUT " : "";
-                        sb.Append($", {o}{ToCppName(param.Type, ns_pre)} {param.Name}");
+                        sb.Append($", {o}{ToCppName(param.Type, ns_pre, true)} {param.Name}");
                     }
                     sb.AppendLine($") noexcept;");
                 }
@@ -314,8 +331,8 @@ public record CppOutput : AOutput
                 sb.AppendLine($"{{");
                 foreach (var method in a.Methods)
                 {
-                    var ret_struct_ptr = method.ReturnType.Kind.IsStruct; // todo check marshal as
-                    var ret_type = ToCppName(method.ReturnType, ns_pre);
+                    var ret_struct_ptr = method.ReturnType.Kind.IsStruct && !IsMarshalAs(method.ReturnType);
+                    var ret_type = ToCppName(method.ReturnType, ns_pre, true);
                     sb.Append($"    extern \"C\" {ret_type}");
                     if (ret_struct_ptr) sb.Append("*");
                     sb.Append($" COPLT_CDECL {method.Name}(");
@@ -327,7 +344,7 @@ public record CppOutput : AOutput
                     {
                         var i = inc++;
                         var o = (param.Flags & ParamFlags.Out) != 0 ? "COPLT_OUT " : "";
-                        sb.Append($", {o}{ToCppName(param.Type, ns_pre)} p{i}");
+                        sb.Append($", {o}{ToCppName(param.Type, ns_pre, true)} p{i}");
                     }
                     sb.AppendLine($") noexcept;");
                 }
@@ -399,14 +416,14 @@ public record CppOutput : AOutput
                 if (a.Methods.Count > 0) sb.AppendLine();
                 foreach (var method in a.Methods)
                 {
-                    sb.Append($"        virtual {ToCppName(method.ReturnType, ns_pre)} Impl_{method.Name}(");
+                    sb.Append($"        virtual {ToCppName(method.ReturnType, ns_pre, false)} Impl_{method.Name}(");
                     var first = true;
                     foreach (var param in method.Params)
                     {
                         if (first) first = false;
                         else sb.Append(", ");
                         var o = (param.Flags & ParamFlags.Out) != 0 ? "COPLT_OUT " : "";
-                        sb.Append($"{o}{ToCppName(param.Type, ns_pre)} {param.Name}");
+                        sb.Append($"{o}{ToCppName(param.Type, ns_pre, false)} {param.Name}");
                     }
                     sb.AppendLine($"){((method.Flags & MethodFlags.Const) != 0 ? " const" : "")} = 0;");
                 }
@@ -438,8 +455,9 @@ public record CppOutput : AOutput
                 foreach (var method in a.Methods)
                 {
                     sb.AppendLine();
-                    var ret_struct_ptr = method.ReturnType.Kind.IsStruct; // todo check marshal as
-                    var ret_type = ToCppName(method.ReturnType, ns_pre);
+                    var ret_is_marshal_as = IsMarshalAs(method.ReturnType);
+                    var ret_struct_ptr = method.ReturnType.Kind.IsStruct && !ret_is_marshal_as;
+                    var ret_type = ToCppName(method.ReturnType, ns_pre, true);
                     sb.Append($"    extern \"C\" inline {ret_type}");
                     if (ret_struct_ptr) sb.Append("*");
                     sb.Append($" COPLT_CDECL {method.Name}(");
@@ -451,7 +469,7 @@ public record CppOutput : AOutput
                     {
                         var i = inc++;
                         var o = (param.Flags & ParamFlags.Out) != 0 ? "COPLT_OUT " : "";
-                        sb.Append($", {o}{ToCppName(param.Type, ns_pre)} p{i}");
+                        sb.Append($", {o}{ToCppName(param.Type, ns_pre, true)} p{i}");
                     }
                     sb.AppendLine($") noexcept");
                     sb.AppendLine($"    {{");
@@ -464,14 +482,19 @@ public record CppOutput : AOutput
                     sb.Append($"        ");
                     if (ret_struct_ptr) sb.Append($"*r = ");
                     else if (ret_type != "void") sb.Append($"r = ");
+                    if (ret_is_marshal_as) sb.Append($"::Coplt::Internal::BitCast<{ToCppName(method.ReturnType, ns_pre, true)}>(");
                     sb.Append($"::Coplt::Internal::AsImpl<{ns_pre}{name}>(self)->Impl_{method.Name}(");
                     inc = 0;
-                    foreach (var _ in method.Params)
+                    foreach (var param in method.Params)
                     {
+                        var is_marshal_as = IsMarshalAs(param.Type);
                         var i = inc++;
                         if (i != 0) sb.Append($", ");
+                        if (is_marshal_as) sb.Append($"::Coplt::Internal::BitCast<{ToCppName(param.Type, ns_pre, true)}>(");
                         sb.Append($"p{i}");
+                        if (is_marshal_as) sb.Append(")");
                     }
+                    if (ret_is_marshal_as) sb.Append($")");
                     sb.AppendLine($");");
                     sb.AppendLine($"        #ifdef COPLT_COM_AFTER_VIRTUAL_CALL");
                     sb.AppendLine($"        COPLT_COM_AFTER_VIRTUAL_CALL({ns_pre}{name}, {method.Name}, {ret_type})");
@@ -501,8 +524,9 @@ public record CppOutput : AOutput
                 sb.AppendLine($"{{");
                 foreach (var method in a.Methods)
                 {
-                    var ret_struct_ptr = method.ReturnType.Kind.IsStruct; // todo check marshal as
-                    var ret_type = ToCppName(method.ReturnType, ns_pre);
+                    var ret_is_marshal_as = IsMarshalAs(method.ReturnType);
+                    var ret_struct_ptr = method.ReturnType.Kind.IsStruct && !ret_is_marshal_as;
+                    var ret_type = ToCppName(method.ReturnType, ns_pre, false);
                     sb.Append($"    static COPLT_FORCE_INLINE {ret_type} {method.Name}(");
                     if ((method.Flags & MethodFlags.Const) != 0) sb.Append($"const ");
                     sb.Append($"{ns_pre}{name}* self");
@@ -511,7 +535,7 @@ public record CppOutput : AOutput
                     {
                         var i = inc++;
                         var o = (param.Flags & ParamFlags.Out) != 0 ? "COPLT_OUT " : "";
-                        sb.Append($", {o}{ToCppName(param.Type, ns_pre)} p{i}");
+                        sb.Append($", {o}{ToCppName(param.Type, ns_pre, false)} p{i}");
                     }
                     sb.AppendLine($") noexcept");
                     sb.AppendLine($"    {{");
@@ -519,14 +543,20 @@ public record CppOutput : AOutput
                     sb.Append($"        ");
                     if (ret_struct_ptr) sb.Append("return *");
                     else if (ret_type != "void") sb.Append($"return ");
+                    if (ret_is_marshal_as) sb.Append($"::Coplt::Internal::BitCast<{ToCppName(method.ReturnType, ns_pre, false)}>(");
                     sb.Append($"COPLT_COM_PVTB({name}, self)->f_{method.Name}(self");
                     if (ret_struct_ptr) sb.Append($", &r");
                     inc = 0;
-                    foreach (var _ in method.Params)
+                    foreach (var param in method.Params)
                     {
+                        var is_marshal_as = IsMarshalAs(param.Type);
                         var i = inc++;
-                        sb.Append($", p{i}");
+                        sb.Append($", ");
+                        if (is_marshal_as) sb.Append($"::Coplt::Internal::BitCast<{ToCppName(param.Type, ns_pre, false)}>(");
+                        sb.Append($"p{i}");
+                        if (is_marshal_as) sb.Append(")");
                     }
+                    if (ret_is_marshal_as) sb.Append(")");
                     sb.AppendLine($");");
                     sb.AppendLine($"    }}");
                 }
@@ -580,14 +610,14 @@ public record CppOutput : AOutput
                 if (a.Methods.Count > 0) sb.AppendLine();
                 foreach (var method in a.Methods)
                 {
-                    sb.Append($"{space}    COPLT_COM_METHOD({method.Name}, {ToCppName(method.ReturnType, ns_pre)}, (");
+                    sb.Append($"{space}    COPLT_COM_METHOD({method.Name}, {ToCppName(method.ReturnType, ns_pre, false)}, (");
                     var first = true;
                     foreach (var param in method.Params)
                     {
                         if (first) first = false;
                         else sb.Append(", ");
                         var o = (param.Flags & ParamFlags.Out) != 0 ? "COPLT_OUT " : "";
-                        sb.Append($"{o}{ToCppName(param.Type, ns_pre)} {param.Name}");
+                        sb.Append($"{o}{ToCppName(param.Type, ns_pre, false)} {param.Name}");
                     }
                     sb.Append($"){((method.Flags & MethodFlags.Const) != 0 ? " const" : "")}");
                     foreach (var param in method.Params)

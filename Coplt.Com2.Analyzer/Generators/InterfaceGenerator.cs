@@ -25,7 +25,6 @@ public class InterfaceGenerator : IIncrementalGenerator
     );
 
     public const string Id = "CoCom";
-
     public void Initialize(IncrementalGeneratorInitializationContext context)
     {
         var sources = context.SyntaxProvider.ForAttributeWithMetadataName(
@@ -118,6 +117,15 @@ public class InterfaceGenerator : IIncrementalGenerator
         return symbol is { TypeKind: TypeKind.Struct, SpecialType: SpecialType.None };
     }
 
+    private string? CheckMarshalAs(ITypeSymbol symbol)
+    {
+        if (symbol is not INamedTypeSymbol named) return null;
+        var attr = named.GetAttributes().FirstOrDefault(a => a.AttributeClass?.ToDisplayString() == "Coplt.Com.ComMarshalAsAttribute");
+        if (attr is null) return null;
+        var e = (ComUnmanagedType)(int)attr.ConstructorArguments[0].Value!;
+        return e.ToString().ToLower();
+    }
+
     private Varying Transform(GeneratorAttributeSyntaxContext ctx, CancellationToken _)
     {
         var varying = new Varying();
@@ -196,7 +204,7 @@ public class InterfaceGenerator : IIncrementalGenerator
                         Name = p.Name,
                         Type = p.Type.ToDisplayString(TypeDisplayFormat),
                         TypeIsStruct = IsUserDefinedStruct(p.Type),
-                        TypeMarshalAs = null, // todo
+                        TypeMarshalAs = CheckMarshalAs(p.Type), 
                         RefKind = p.RefKind,
                     });
                 }
@@ -208,7 +216,7 @@ public class InterfaceGenerator : IIncrementalGenerator
                     Name = sym.Name,
                     ReturnType = sym.ReturnType.ToDisplayString(TypeDisplayFormat),
                     ReturnTypeIsStruct = IsUserDefinedStruct(sym.ReturnType),
-                    ReturnTypeMarshalAs = null, // todo
+                    ReturnTypeMarshalAs = CheckMarshalAs(sym.ReturnType),
                     ReturnRefKind = sym.RefKind,
                     Params = [..args],
                 });

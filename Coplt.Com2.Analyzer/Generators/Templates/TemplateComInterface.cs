@@ -172,7 +172,10 @@ public class TemplateComInterface(InterfaceGenerator.Varying varying) : ATemplat
                     ({ ReturnRefKind : not RefKind.None }, _) => "return ref *",
                     _ => "return ",
                 };
-                sb.Append($"{space}{re}this.LpVtbl->{member.Name}(ComUtils.AsPointer(in this)");
+                sb.Append($"{space}{re}");
+                if (member.ReturnTypeMarshalAs is not null)
+                    sb.Append($"{Unsafe}.BitCast<{member.ReturnTypeMarshalAs}, {member.ReturnType}>(");
+                sb.Append($"this.LpVtbl->{member.Name}(ComUtils.AsPointer(in this)");
                 if (ret_struct_ptr) sb.Append($", &r");
                 pi = 0;
                 fi = 0;
@@ -187,6 +190,7 @@ public class TemplateComInterface(InterfaceGenerator.Varying varying) : ATemplat
                     };
                     sb.Append($", {n}");
                 }
+                if (member.ReturnTypeMarshalAs is not null) sb.Append($")");
                 sb.AppendLine($");");
                 if (has_fixed) sb.AppendLine($"        }}");
                 sb.AppendLine($"    }}");

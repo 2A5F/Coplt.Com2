@@ -479,6 +479,11 @@ internal class SymbolDb
             decl.TypeParams = type.GenericParameters.Select(a => $"{a.Name}").ToList();
             if ((type.Attributes & TypeAttributes.ExplicitLayout) != 0) decl.Flags |= StructFlags.Union;
             if (type.FindCustomAttributes("Coplt.Com", "RefOnlyAttribute").Any()) decl.Flags |= StructFlags.RefOnly;
+            var marshal_as = type.FindCustomAttributes("Coplt.Com", "ComMarshalAsAttribute").FirstOrDefault();
+            if (marshal_as != null)
+            {
+                // todo
+            }
             foreach (var field in type.Fields)
             {
                 if ((field.Attributes & FieldAttributes.Static) != 0) continue;
@@ -693,6 +698,7 @@ public record TypeSymbol(string FullName)
     public TypeSymbol? TargetOrReturn { get; set; }
     public ImmutableArray<TypeSymbol> GenericsOrParams { get; set; }
     public uint Index { get; set; }
+    // todo marshal as
 
     public override string ToString() => Kind is TypeKind.Fn
         ? $"{((Flags & TypeFlags.Const) != 0 ? "const " : "")}{{ {TargetOrReturn} ({string.Join(",", GenericsOrParams)}) }}*"

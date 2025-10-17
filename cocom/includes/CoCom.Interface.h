@@ -20,6 +20,12 @@ namespace Coplt
 
     namespace Internal
     {
+        template<class T, class B>
+        COPLT_FORCE_INLINE T BitCast(B a)
+        {
+            return *reinterpret_cast<T*>(std::addressof(a));
+        }
+
         template <class... T>
         struct ComProxy;
 
@@ -124,7 +130,7 @@ namespace Coplt
     template <>
     struct Internal::VirtualTable<IUnknown>
     {
-        HResult (*const COPLT_CDECL f_QueryInterface)(const IUnknown*, const Guid& guid,
+        i32 (*const COPLT_CDECL f_QueryInterface)(const IUnknown*, const Guid& guid,
                                                       COPLT_OUT void*& object) noexcept;
         u32 (*const COPLT_CDECL f_AddRef)(const IUnknown*) noexcept;
         u32 (*const COPLT_CDECL f_Release)(const IUnknown*) noexcept;
@@ -132,7 +138,7 @@ namespace Coplt
 
     namespace Internal::VirtualImpl_IUnknown
     {
-        extern "C" HResult COPLT_CDECL QueryInterface(
+        extern "C" i32 COPLT_CDECL QueryInterface(
             const IUnknown* self, const Guid& guid, COPLT_OUT void*& object
         ) noexcept;
         extern "C" u32 COPLT_CDECL AddRef(const IUnknown* self) noexcept;
@@ -201,11 +207,11 @@ namespace Coplt
 
     namespace Internal::VirtualImpl_IUnknown
     {
-        extern "C" inline HResult COPLT_CDECL QueryInterface(
+        extern "C" inline i32 COPLT_CDECL QueryInterface(
             const IUnknown* self, const Guid& guid, COPLT_OUT void*& object
         ) noexcept
         {
-            return AsImpl(self)->Impl_QueryInterface(guid, object);
+            return BitCast<i32>(AsImpl(self)->Impl_QueryInterface(guid, object));
         }
 
         extern "C" inline u32 COPLT_CDECL AddRef(const IUnknown* self) noexcept
@@ -224,7 +230,7 @@ namespace Coplt
     {
         static COPLT_FORCE_INLINE HResult QueryInterface(const IUnknown* self, const Guid& guid, COPLT_OUT void*& object)
         {
-            return COPLT_COM_PVTB(IUnknown, self)->f_QueryInterface(self, guid, object);
+            return BitCast<HResult>(COPLT_COM_PVTB(IUnknown, self)->f_QueryInterface(self, guid, object));
         }
         static COPLT_FORCE_INLINE u32 AddRef(const IUnknown* self)
         {
