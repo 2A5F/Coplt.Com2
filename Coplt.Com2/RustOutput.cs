@@ -114,6 +114,7 @@ public record RustOutput : AOutput
                 sb.AppendLine();
                 // todo flags
                 sb.AppendLine($"#[repr({underlying})]");
+                sb.AppendLine($"#[derive(Debug, Clone, Copy, PartialEq, PartialOrd)]");
                 sb.AppendLine($"pub enum {name} {{");
                 foreach (var item in a.Items)
                 {
@@ -138,6 +139,7 @@ public record RustOutput : AOutput
                 var name = a.Name.Split('.', '+').Last().Split('`').First();
                 sb.AppendLine();
                 sb.AppendLine($"#[repr(C)]");
+                sb.AppendLine($"#[derive(Debug, Clone, Copy, PartialEq, PartialOrd)]");
                 sb.Append($"pub {((a.Flags & StructFlags.Union) != 0 ? "union" : "struct")} {name}");
                 if (a.TypeParams.Count > 0)
                 {
