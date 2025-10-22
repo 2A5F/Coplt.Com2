@@ -173,7 +173,7 @@ public record RustOutput : AOutput
                         if (i != 0) sb.Append(", ");
                         sb.Append($"T{i} /* {param} */");
                     }
-                    sb.AppendLine($">");
+                    sb.Append($">");
                 }
                 sb.AppendLine($" {{");
                 foreach (var field in a.Fields)
