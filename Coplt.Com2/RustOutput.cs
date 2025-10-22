@@ -1,16 +1,29 @@
 ﻿using System.Text;
+using System.Text.Json.Serialization;
 using Coplt.Com2.Symbols;
 
 namespace Coplt.Com2;
 
+public record RustOverride
+{
+    [JsonPropertyName("Debug")]
+    public bool Debug { get; set; } = true;
+    [JsonPropertyName("PartialEq")]
+    public bool PartialEq { get; set; } = true;
+    [JsonPropertyName("PartialOrd")]
+    public bool PartialOrd { get; set; } = true;
+}
+
 public record RustOutput : AOutput
 {
+    public Dictionary<string, RustOverride> Override { get; set; } = new();
+
     internal async ValueTask Output(SymbolDb db)
     {
         var sb = new StringBuilder();
         sb.AppendLine("#![allow(unused)]");
         sb.AppendLine("#![allow(non_snake_case)]");
-        
+
         GenTypes(db, sb);
         GenInterfaces(db, sb);
 
@@ -97,7 +110,7 @@ public record RustOutput : AOutput
         }
         return "ERROR";
     }
-    
+
     internal void GenTypes(SymbolDb db, StringBuilder root_sb)
     {
         #region Enums
@@ -137,10 +150,19 @@ public record RustOutput : AOutput
             {
                 var sb = new StringBuilder();
                 var name = a.Name.Split('.', '+').Last().Split('`').First();
+                var is_union = (a.Flags & StructFlags.Union) != 0;
                 sb.AppendLine();
                 sb.AppendLine($"#[repr(C)]");
-                sb.AppendLine($"#[derive(Debug, Clone, Copy, PartialEq, PartialOrd)]");
-                sb.Append($"pub {((a.Flags & StructFlags.Union) != 0 ? "union" : "struct")} {name}");
+                sb.Append($"#[derive(Clone, Copy");
+                if (!is_union)
+                {
+                    Override.TryGetValue(name, out var ov);
+                    if (ov is null || ov.Debug) sb.Append($", Debug");
+                    if (ov is null || ov.PartialEq) sb.Append($", PartialEq");
+                    if (ov is null || ov.PartialOrd) sb.Append(", PartialOrd");
+                }
+                sb.AppendLine($")]");
+                sb.Append($"pub {(is_union ? "union" : "struct")} {name}");
                 if (a.TypeParams.Count > 0)
                 {
                     sb.Append($"<");
@@ -165,7 +187,7 @@ public record RustOutput : AOutput
 
         #endregion
     }
-    
+
     internal void GenInterfaces(SymbolDb db, StringBuilder root_sb)
     {
         #region Interfaces
