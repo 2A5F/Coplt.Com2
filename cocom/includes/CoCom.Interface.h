@@ -20,7 +20,7 @@ namespace Coplt
 
     namespace Internal
     {
-        template<class T, class B>
+        template <class T, class B>
         COPLT_FORCE_INLINE T BitCast(B a)
         {
             return *reinterpret_cast<T*>(std::addressof(a));
@@ -131,7 +131,7 @@ namespace Coplt
     struct Internal::VirtualTable<IUnknown>
     {
         i32 (*const COPLT_CDECL f_QueryInterface)(const IUnknown*, const Guid& guid,
-                                                      COPLT_OUT void*& object) noexcept;
+                                                  COPLT_OUT void*& object) noexcept;
         u32 (*const COPLT_CDECL f_AddRef)(const IUnknown*) noexcept;
         u32 (*const COPLT_CDECL f_Release)(const IUnknown*) noexcept;
     };
@@ -203,6 +203,41 @@ namespace Coplt
             {
             }
         };
+
+        template <class Impl>
+        struct VirtualImpl
+        {
+            template <class Interface>
+            COPLT_FORCE_INLINE static auto AsImpl(const Interface* self) { return static_cast<const Impl*>(self); }
+
+            template <class Interface>
+            COPLT_FORCE_INLINE static auto AsImpl(Interface* self) { return static_cast<Impl*>(self); }
+
+            static i32 COPLT_CDECL f_QueryInterface(
+                const IUnknown* self, const Guid& guid, COPLT_OUT void*& object
+            ) noexcept
+            {
+                return BitCast<i32>(AsImpl(self)->Impl_QueryInterface(guid, object));
+            }
+
+            static u32 COPLT_CDECL f_AddRef(const IUnknown* self) noexcept
+            {
+                return AsImpl(self)->Impl_AddRef();
+            }
+
+            static u32 COPLT_CDECL f_Release(const IUnknown* self) noexcept
+            {
+                return AsImpl(self)->Impl_Release();
+            }
+        };
+
+        template <class Impl>
+        constexpr static VirtualTable s_vtb
+        {
+            .f_QueryInterface = VirtualImpl<Impl>::f_QueryInterface,
+            .f_AddRef = VirtualImpl<Impl>::f_AddRef,
+            .f_Release = VirtualImpl<Impl>::f_Release,
+        };
     };
 
     namespace Internal::VirtualImpl_IUnknown
@@ -228,14 +263,17 @@ namespace Coplt
     template <>
     struct Internal::CallComMethod<IUnknown>
     {
-        static COPLT_FORCE_INLINE HResult QueryInterface(const IUnknown* self, const Guid& guid, COPLT_OUT void*& object)
+        static COPLT_FORCE_INLINE HResult QueryInterface(const IUnknown* self, const Guid& guid,
+                                                         COPLT_OUT void*& object)
         {
             return BitCast<HResult>(COPLT_COM_PVTB(IUnknown, self)->f_QueryInterface(self, guid, object));
         }
+
         static COPLT_FORCE_INLINE u32 AddRef(const IUnknown* self)
         {
             return COPLT_COM_PVTB(IUnknown, self)->f_AddRef(self);
         }
+
         static COPLT_FORCE_INLINE u32 Release(const IUnknown* self)
         {
             return COPLT_COM_PVTB(IUnknown, self)->f_Release(self);
@@ -367,6 +405,46 @@ namespace Coplt
             {
             }
         };
+
+        template <class Impl>
+        struct VirtualImpl
+        {
+            template <class Interface>
+            COPLT_FORCE_INLINE static auto AsImpl(const Interface* self) { return static_cast<const Impl*>(self); }
+
+            template <class Interface>
+            COPLT_FORCE_INLINE static auto AsImpl(Interface* self) { return static_cast<Impl*>(self); }
+
+            static u32 COPLT_CDECL f_AddRefWeak(const IWeak* self) noexcept
+            {
+                return AsImpl(self)->Impl_AddRefWeak();
+            }
+
+            static u32 COPLT_CDECL f_ReleaseWeak(const IWeak* self) noexcept
+            {
+                return AsImpl(self)->Impl_ReleaseWeak();
+            }
+
+            static bool COPLT_CDECL f_TryUpgrade(const IWeak* self) noexcept
+            {
+                return AsImpl(self)->Impl_TryUpgrade();
+            }
+
+            static bool COPLT_CDECL f_TryDowngrade(const IWeak* self) noexcept
+            {
+                return AsImpl(self)->Impl_TryDowngrade();
+            }
+        };
+
+        template <class Impl>
+        constexpr static VirtualTable s_vtb
+        {
+            .b = ComProxy<IUnknown>::s_vtb<Impl>,
+            .f_AddRefWeak = VirtualImpl<Impl>::f_AddRefWeak,
+            .f_ReleaseWeak = VirtualImpl<Impl>::f_ReleaseWeak,
+            .f_TryUpgrade = VirtualImpl<Impl>::f_TryUpgrade,
+            .f_TryDowngrade = VirtualImpl<Impl>::f_TryDowngrade,
+        };
     };
 
     namespace Internal::VirtualImpl_IWeak
@@ -399,14 +477,17 @@ namespace Coplt
         {
             return COPLT_COM_PVTB(IWeak, self)->f_AddRefWeak(self);
         }
+
         static COPLT_FORCE_INLINE u32 ReleaseWeak(const IWeak* self)
         {
             return COPLT_COM_PVTB(IWeak, self)->f_ReleaseWeak(self);
         }
+
         static COPLT_FORCE_INLINE bool TryUpgrade(const IWeak* self)
         {
             return COPLT_COM_PVTB(IWeak, self)->f_TryUpgrade(self);
         }
+
         static COPLT_FORCE_INLINE bool TryDowngrade(const IWeak* self)
         {
             return COPLT_COM_PVTB(IWeak, self)->f_TryDowngrade(self);

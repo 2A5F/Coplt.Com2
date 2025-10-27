@@ -49,7 +49,7 @@ public record Config
 [JsonPolymorphic(TypeDiscriminatorPropertyName = "type")]
 public abstract record AOutput
 {
-    public string Path { get; set; } = null!;
+    public required string Path { get; set; } = null!;
 }
 
 public record JsonOutput : AOutput { }

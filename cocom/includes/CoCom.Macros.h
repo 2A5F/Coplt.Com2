@@ -124,4 +124,12 @@ enum class Name : Type
 #define COPLT_OUT
 #endif
 
+#ifndef COPLT_IMPL_START
+#define COPLT_IMPL_START
+#endif
+
+#ifndef COPLT_IMPL_END
+#define COPLT_IMPL_END
+#endif
+
 #endif //COPLT_COM_MACROS_H

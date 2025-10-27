@@ -3,16 +3,24 @@ using Coplt.Com2.Symbols;
 
 namespace Coplt.Com2;
 
+public record CppObject
+{
+    public required string Impl { get; set; }
+    public required string Name { get; set; }
+}
+
 public record CppOutput : AOutput
 {
     public string CoComPath { get; set; } = "CoCom.h";
     public string ProjName { get; set; } = "ProjectName";
     public string? Namespace { get; set; }
+    public string? ObjectPath { get; set; } = null!;
+    public Dictionary<string, CppObject> Objects { get; set; } = [];
 
     internal async ValueTask Output(SymbolDb db)
     {
         Directory.CreateDirectory(Path);
-        await Task.WhenAll(GenTypes(db), GenDetails(db), GenInterfaces(db));
+        await Task.WhenAll(GenTypes(db), GenDetails(db), GenInterfaces(db), GenObjects(db));
     }
 
     internal static string ToCppName(TypeSymbol symbol, string ns, bool marshal)
@@ -170,7 +178,7 @@ public record CppOutput : AOutput
             .Select(a => a.Value)
             .Select(a => $"{space}struct {a.Name};").ToList();
         root_sb.AppendLine();
-        root_sb.AppendJoin("\n\n", interfaces_pre_define);
+        root_sb.AppendJoin($"{Environment.NewLine}{Environment.NewLine}", interfaces_pre_define);
         root_sb.AppendLine();
 
         #endregion
@@ -240,7 +248,7 @@ public record CppOutput : AOutput
 
         #endregion
 
-        if (Namespace is not null) root_sb.AppendLine($"\n}} // namespace {Namespace}");
+        if (Namespace is not null) root_sb.AppendLine($"{Environment.NewLine}}} // namespace {Namespace}");
         root_sb.AppendLine();
         root_sb.AppendLine($"#endif //{ProjName}_TYPES_H");
         await File.WriteAllTextAsync($"{Path}/Types.h", root_sb.ToString(), Encoding.UTF8);
@@ -282,7 +290,7 @@ public record CppOutput : AOutput
 
         #endregion
 
-        if (Namespace is not null) root_sb.AppendLine($"\n}} // namespace {Namespace}");
+        if (Namespace is not null) root_sb.AppendLine($"{Environment.NewLine}}} // namespace {Namespace}");
 
         var ns_pre = Namespace is null ? "" : $"::{Namespace}::";
 
@@ -444,6 +452,84 @@ public record CppOutput : AOutput
 
                 #endregion
 
+                #region VirtualImpl
+                
+                sb.AppendLine($"    template <class Impl>");
+                sb.AppendLine($"    struct VirtualImpl");
+                sb.AppendLine($"    {{");
+                sb.AppendLine($"        template <class Interface>");
+                sb.AppendLine($"        COPLT_FORCE_INLINE static auto AsImpl(const Interface* self) {{ return static_cast<const Impl*>(self); }}");
+                sb.AppendLine($"        template <class Interface>");
+                sb.AppendLine($"        COPLT_FORCE_INLINE static auto AsImpl(Interface* self) {{ return static_cast<Impl*>(self); }}");
+                foreach (var method in a.Methods)
+                {
+                    sb.AppendLine();
+                    var ret_is_marshal_as = IsMarshalAs(method.ReturnType);
+                    var ret_struct_ptr = method.ReturnType.Kind.IsStruct && !ret_is_marshal_as;
+                    var ret_type = ToCppName(method.ReturnType, ns_pre, true);
+                    sb.Append($"        static {ret_type}");
+                    if (ret_struct_ptr) sb.Append("*");
+                    sb.Append($" COPLT_CDECL f_{method.Name}(");
+                    if ((method.Flags & MethodFlags.Const) != 0) sb.Append($"const ");
+                    sb.Append($"{ns_pre}{name}* self");
+                    if (ret_struct_ptr) sb.Append($", {ret_type}* r");
+                    var inc = 0;
+                    foreach (var param in method.Params)
+                    {
+                        var i = inc++;
+                        var o = (param.Flags & ParamFlags.Out) != 0 ? "COPLT_OUT " : "";
+                        sb.Append($", {o}{ToCppName(param.Type, ns_pre, true)} p{i}");
+                    }
+                    sb.AppendLine($") noexcept");
+                    sb.AppendLine($"        {{");
+                    if (ret_struct_ptr) { }
+                    else if (ret_type != "void") sb.AppendLine($"            {ret_type} r;");
+                    else sb.AppendLine($"            struct {{ }} r;");
+                    sb.AppendLine($"            #ifdef COPLT_COM_BEFORE_VIRTUAL_CALL");
+                    sb.AppendLine($"            COPLT_COM_BEFORE_VIRTUAL_CALL({ns_pre}{name}, {method.Name}, {ret_type})");
+                    sb.AppendLine($"            #endif");
+                    sb.Append($"            ");
+                    if (ret_struct_ptr) sb.Append($"*r = ");
+                    else if (ret_type != "void") sb.Append($"r = ");
+                    if (ret_is_marshal_as) sb.Append($"::Coplt::Internal::BitCast<{ToCppName(method.ReturnType, ns_pre, true)}>(");
+                    sb.Append($"AsImpl(self)->Impl_{method.Name}(");
+                    inc = 0;
+                    foreach (var param in method.Params)
+                    {
+                        var is_marshal_as = IsMarshalAs(param.Type);
+                        var i = inc++;
+                        if (i != 0) sb.Append($", ");
+                        if (is_marshal_as) sb.Append($"::Coplt::Internal::BitCast<{ToCppName(param.Type, ns_pre, true)}>(");
+                        sb.Append($"p{i}");
+                        if (is_marshal_as) sb.Append(")");
+                    }
+                    if (ret_is_marshal_as) sb.Append($")");
+                    sb.AppendLine($");");
+                    sb.AppendLine($"            #ifdef COPLT_COM_AFTER_VIRTUAL_CALL");
+                    sb.AppendLine($"            COPLT_COM_AFTER_VIRTUAL_CALL({ns_pre}{name}, {method.Name}, {ret_type})");
+                    sb.AppendLine($"            #endif");
+                    if (ret_struct_ptr || ret_type != "void") sb.AppendLine($"            return r;");
+                    sb.AppendLine($"        }}");
+                }
+                sb.AppendLine($"    }};");
+
+                #endregion
+
+                #region vtb
+
+                sb.AppendLine();
+                sb.AppendLine($"    template<class Impl>");
+                sb.AppendLine($"    constexpr static VirtualTable s_vtb");
+                sb.AppendLine($"    {{");
+                sb.AppendLine($"        .b = ComProxy<{ns_pre}{parent}>::s_vtb<Impl>,");
+                foreach (var method in a.Methods)
+                {
+                    sb.AppendLine($"        .f_{method.Name} = VirtualImpl<Impl>::f_{method.Name},");
+                }
+                sb.AppendLine($"    }};");
+
+                #endregion
+                
                 sb.AppendLine($"}};");
 
                 #endregion
@@ -633,9 +719,112 @@ public record CppOutput : AOutput
 
         #endregion
 
-        if (Namespace is not null) root_sb.AppendLine($"\n}} // namespace {Namespace}");
+        if (Namespace is not null) root_sb.AppendLine($"{Environment.NewLine}}} // namespace {Namespace}");
         root_sb.AppendLine();
         root_sb.AppendLine($"#endif //{ProjName}_INTERFACE_H");
         await File.WriteAllTextAsync($"{Path}/Interface.h", root_sb.ToString(), Encoding.UTF8);
+    }
+
+    internal async Task GenObjects(SymbolDb db)
+    {
+        await Task.WhenAll(Objects.Select(a => GenObject(db, a.Key, a.Value)));
+    }
+
+    internal async Task GenObject(SymbolDb db, string path, CppObject obj)
+    {
+        if (!db.Interfaces.TryGetValue(obj.Impl, out var ids))
+        {
+            await Console.Error.WriteLineAsync($"{path}: Interface {obj.Impl} is undefined");
+            return;
+        }
+        path = System.IO.Path.Join(ObjectPath ?? Path, path);
+        List<string> code;
+        if (File.Exists(path)) code = await File.ReadLinesAsync(path).ToListAsync();
+        else
+        {
+            code =
+            [
+                "#pragma once",
+                ""
+            ];
+        }
+        var struct_pat = $"struct {obj.Name}";
+        var find_struct = code.Index().FirstOrDefault(a => a.Item.Contains(struct_pat));
+        int struct_line = -1, start_line = -1, end_line = -1;
+        var space = Namespace is null ? "" : "    ";
+        if (find_struct.Item == null)
+        {
+            code.Add("");
+            if (Namespace is not null) code.Add($"namespace {Namespace} {{");
+            struct_line = code.Count;
+            code.Add($"{space}struct {obj.Name} final : ComImpl<{obj.Name}, {obj.Impl}>");
+            code.Add($"{space}{{");
+            start_line = code.Count;
+            code.Add($"{space}    COPLT_IMPL_START");
+            end_line = code.Count;
+            code.Add($"{space}    COPLT_IMPL_END");
+            code.Add($"{space}}};");
+            if (Namespace is not null) code.Add($"}} // namespace {Namespace}");
+        }
+        else
+        {
+            struct_line = find_struct.Index;
+            var find_start = code.Skip(struct_line).Index().FirstOrDefault(a => a.Item.Contains("COPLT_IMPL_START"));
+            if (find_start.Item == null)
+            {
+                start_line = struct_line + 2;
+                code.Insert(start_line, $"{space}    COPLT_IMPL_START");
+                end_line = start_line + 1;
+                code.Insert(end_line, $"{space}    COPLT_IMPL_END");
+            }
+            else
+            {
+                start_line = struct_line + find_start.Index;
+                var find_end = code.Skip(start_line).Index().FirstOrDefault(a => a.Item.Contains("COPLT_IMPL_END"));
+                if (find_end.Item == null)
+                {
+                    end_line = start_line + 1;
+                    code.Insert(end_line, $"{space}    COPLT_IMPL_END");
+                }
+                else
+                {
+                    end_line = start_line + find_end.Index;
+                }
+            }
+        }
+        var impls = new List<string>();
+        GenObject(impls, ids);
+        code.RemoveRange(start_line + 1, end_line - start_line - 1);
+        code.InsertRange(start_line + 1, impls);
+        await File.WriteAllLinesAsync(path, code, Encoding.UTF8);
+    }
+
+    internal void GenObject(List<string> code, InterfaceDeclareSymbol ids)
+    {
+        var ns_pre = "";
+        var space = Namespace is null ? "" : "    ";
+        if (ids.Parent is { } parent)
+        {
+            GenObject(code, parent);
+            code.Add("");
+        }
+        if (ids.Methods.Count > 0) code.Add("");
+        foreach (var method in ids.Methods)
+        {
+            code.Add($"{space}    COPLT_FORCE_INLINE");
+            var sb = new StringBuilder();
+            sb.Append($"{space}    {ToCppName(method.ReturnType, ns_pre, false)} Impl_{method.Name}(");
+            var first = true;
+            foreach (var param in method.Params)
+            {
+                if (first) first = false;
+                else sb.Append(", ");
+                var o = (param.Flags & ParamFlags.Out) != 0 ? "COPLT_OUT " : "";
+                sb.Append($"{o}{ToCppName(param.Type, ns_pre, false)} {param.Name}");
+            }
+            sb.Append($"){((method.Flags & MethodFlags.Const) != 0 ? " const" : "")};");
+            code.Add(sb.ToString().Replace("::Coplt::", ""));
+            code.Add("");
+        }
     }
 }

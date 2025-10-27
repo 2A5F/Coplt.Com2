@@ -132,6 +132,44 @@ namespace Coplt
             delete this;
         }
     };
+
+    template<class Self>
+    struct RefCount
+    {
+    private:
+        mutable ::std::atomic_uint32_t m_strong{1};
+
+    public:
+        u32 Impl_AddRef() const
+        {
+            return m_strong.fetch_add(1, ::std::memory_order_relaxed);
+        }
+
+        u32 Impl_Release() const
+        {
+            const auto r = m_strong.fetch_sub(1, ::std::memory_order_release);
+            if (r != 1) [[likely]] return r;
+            OnRelease();
+            return r;
+        }
+
+    protected:
+        void OnRelease() const
+        {
+            delete this;
+        }
+    };
+
+    template<class Self, Interface I>
+    struct ComImpl : I, RefCount<Self>
+    {
+        ComImpl() : I(&Internal::ComProxy<I>::template s_vtb<Self>), RefCount<Self>() {}
+
+        HResult Impl_QueryInterface(const Guid& guid, COPLT_OUT void*& object) const
+        {
+            return Internal::ComProxy<I>::QueryInterface(this, guid, object);
+        }
+    };
 }
 
 #endif //COPLT_COM_OBJECT_H
