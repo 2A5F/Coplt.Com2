@@ -134,40 +134,58 @@ namespace Coplt
     };
 
     template<class Self>
-    struct RefCount
+    struct Impl_RefCount
     {
     private:
         mutable ::std::atomic_uint32_t m_strong{1};
 
     public:
+        COPLT_FORCE_INLINE
         u32 Impl_AddRef() const
         {
             return m_strong.fetch_add(1, ::std::memory_order_relaxed);
         }
 
+        COPLT_FORCE_INLINE
         u32 Impl_Release() const
         {
             const auto r = m_strong.fetch_sub(1, ::std::memory_order_release);
             if (r != 1) [[likely]] return r;
-            OnRelease();
+            if constexpr (requires(const Self* ptr) { ptr->OnRelease(); })
+            {
+                static_cast<const Self*>(this)->OnRelease();
+            }
+            else
+            {
+                delete static_cast<const Self*>(this);
+            }
             return r;
-        }
-
-    protected:
-        void OnRelease() const
-        {
-            delete this;
         }
     };
 
     template<class Self, Interface I>
-    struct ComImpl : I, RefCount<Self>
+    struct ComImpl : I, Impl_RefCount<Self>
     {
-        ComImpl() : I(&Internal::ComProxy<I>::template s_vtb<Self>), RefCount<Self>() {}
+        ComImpl() : I(&Internal::ComProxy<I>::template s_vtb<Self>), Impl_RefCount<Self>() {}
 
+        COPLT_FORCE_INLINE
         HResult Impl_QueryInterface(const Guid& guid, COPLT_OUT void*& object) const
         {
             return Internal::ComProxy<I>::QueryInterface(this, guid, object);
+        }
+    };
+
+    template<class Self>
+    struct RefCount : Impl_RefCount<Self>
+    {
+        u32 AddRef() const
+        {
+            return Impl_RefCount<Self>::Impl_AddRef();
+        }
+
+        u32 Release() const
+        {
+            return Impl_RefCount<Self>::Impl_Release();
         }
     };
 }

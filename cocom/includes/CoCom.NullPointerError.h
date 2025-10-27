@@ -31,8 +31,13 @@ namespace Coplt
         char const* what() const override
         {
             if (!m_message.empty()) return m_message.c_str();
-            m_message = std::format("{}\n{}", std::exception::what(), m_stacktrace);
+            m_message = build_message();
             return m_message.c_str();
+        }
+
+        std::string build_message() const
+        {
+            return std::format("{}\n{}", std::exception::what(), m_stacktrace);
         }
 
         const std::stacktrace& stacktrace() const

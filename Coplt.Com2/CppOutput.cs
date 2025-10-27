@@ -1,4 +1,5 @@
 ﻿using System.Text;
+using System.Text.RegularExpressions;
 using Coplt.Com2.Symbols;
 
 namespace Coplt.Com2;
@@ -16,6 +17,7 @@ public record CppOutput : AOutput
     public string? Namespace { get; set; }
     public string? ObjectPath { get; set; } = null!;
     public Dictionary<string, CppObject> Objects { get; set; } = [];
+    public bool ImplForceInline { get; set; } = true;
 
     internal async ValueTask Output(SymbolDb db)
     {
@@ -453,7 +455,7 @@ public record CppOutput : AOutput
                 #endregion
 
                 #region VirtualImpl
-                
+
                 sb.AppendLine($"    template <class Impl>");
                 sb.AppendLine($"    struct VirtualImpl");
                 sb.AppendLine($"    {{");
@@ -483,14 +485,9 @@ public record CppOutput : AOutput
                     sb.AppendLine($") noexcept");
                     sb.AppendLine($"        {{");
                     if (ret_struct_ptr) { }
-                    else if (ret_type != "void") sb.AppendLine($"            {ret_type} r;");
-                    else sb.AppendLine($"            struct {{ }} r;");
-                    sb.AppendLine($"            #ifdef COPLT_COM_BEFORE_VIRTUAL_CALL");
-                    sb.AppendLine($"            COPLT_COM_BEFORE_VIRTUAL_CALL({ns_pre}{name}, {method.Name}, {ret_type})");
-                    sb.AppendLine($"            #endif");
                     sb.Append($"            ");
                     if (ret_struct_ptr) sb.Append($"*r = ");
-                    else if (ret_type != "void") sb.Append($"r = ");
+                    else if (ret_type != "void") sb.Append($"return ");
                     if (ret_is_marshal_as) sb.Append($"::Coplt::Internal::BitCast<{ToCppName(method.ReturnType, ns_pre, true)}>(");
                     sb.Append($"AsImpl(self)->Impl_{method.Name}(");
                     inc = 0;
@@ -505,10 +502,7 @@ public record CppOutput : AOutput
                     }
                     if (ret_is_marshal_as) sb.Append($")");
                     sb.AppendLine($");");
-                    sb.AppendLine($"            #ifdef COPLT_COM_AFTER_VIRTUAL_CALL");
-                    sb.AppendLine($"            COPLT_COM_AFTER_VIRTUAL_CALL({ns_pre}{name}, {method.Name}, {ret_type})");
-                    sb.AppendLine($"            #endif");
-                    if (ret_struct_ptr || ret_type != "void") sb.AppendLine($"            return r;");
+                    if (ret_struct_ptr) sb.AppendLine($"            return r;");
                     sb.AppendLine($"        }}");
                 }
                 sb.AppendLine($"    }};");
@@ -529,7 +523,7 @@ public record CppOutput : AOutput
                 sb.AppendLine($"    }};");
 
                 #endregion
-                
+
                 sb.AppendLine($"}};");
 
                 #endregion
@@ -748,8 +742,9 @@ public record CppOutput : AOutput
                 ""
             ];
         }
-        var struct_pat = $"struct {obj.Name}";
-        var find_struct = code.Index().FirstOrDefault(a => a.Item.Contains(struct_pat));
+
+        var struct_pat = new Regex(@$"^\s*struct {obj.Name}(?![A-Za-z]).*$");
+        var find_struct = code.Index().FirstOrDefault(a => struct_pat.IsMatch(a.Item));
         int struct_line = -1, start_line = -1, end_line = -1;
         var space = Namespace is null ? "" : "    ";
         if (find_struct.Item == null)
@@ -811,7 +806,7 @@ public record CppOutput : AOutput
         if (ids.Methods.Count > 0) code.Add("");
         foreach (var method in ids.Methods)
         {
-            code.Add($"{space}    COPLT_FORCE_INLINE");
+            if (ImplForceInline) code.Add($"{space}    COPLT_FORCE_INLINE");
             var sb = new StringBuilder();
             sb.Append($"{space}    {ToCppName(method.ReturnType, ns_pre, false)} Impl_{method.Name}(");
             var first = true;
