@@ -133,7 +133,7 @@ namespace Coplt
         }
     };
 
-    template<class Self>
+    template <class Self>
     struct Impl_RefCount
     {
     private:
@@ -163,19 +163,22 @@ namespace Coplt
         }
     };
 
-    template<class Self, Interface I>
+    template <class Self, Interface I>
     struct ComImpl : I, Impl_RefCount<Self>
     {
-        ComImpl() : I(&Internal::ComProxy<I>::template s_vtb<Self>), Impl_RefCount<Self>() {}
+        ComImpl() : I(&Internal::ComProxy<I>::template s_vtb<Self>), Impl_RefCount<Self>()
+        {
+        }
 
         COPLT_FORCE_INLINE
         HResult Impl_QueryInterface(const Guid& guid, COPLT_OUT void*& object) const
         {
+            if (std::addressof(object) == nullptr) return HResultE::InvalidArg;
             return Internal::ComProxy<I>::QueryInterface(this, guid, object);
         }
     };
 
-    template<class Self>
+    template <class Self>
     struct RefCount : Impl_RefCount<Self>
     {
         u32 AddRef() const

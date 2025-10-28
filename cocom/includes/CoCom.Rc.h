@@ -109,7 +109,7 @@ namespace Coplt
         // move ass
         Rc& operator=(Rc&& r) noexcept
         {
-            if (&m_ptr != &r.m_ptr) Rc(std::move(r)).swap(*this);
+            if (&m_ptr != &r.m_ptr) Rc(std::forward<Rc>(r)).swap(*this);
             return *this;
         }
 
