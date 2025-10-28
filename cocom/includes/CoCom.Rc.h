@@ -210,6 +210,11 @@ namespace Coplt
         {
             return Weak(get(), typename Weak<T>::downgrade_t());
         }
+
+        static Rc UnsafeClone(T* ptr)
+        {
+            return Rc(ptr, clone_t{});
+        }
     };
 
     template <class T>
@@ -373,6 +378,12 @@ namespace Coplt
             return Rc(get(), typename Rc<T>::upgrade_t());
         }
     };
+
+    template <class T>
+    Rc<T> CloneRc(T* ptr)
+    {
+        return Rc<T>::UnsafeClone(ptr);
+    }
 }
 
 #define COPLT_COM_IMPL_RC(Self)

@@ -74,12 +74,12 @@ namespace Coplt
     {
         i32 Value;
 
-        HResult() : Value(0)
+        constexpr HResult() : Value(0)
         {
         }
 
         // ReSharper disable once CppNonExplicitConvertingConstructor
-        HResult(HResultE e) : Value(static_cast<i32>(e)) // NOLINT(*-explicit-constructor)
+        constexpr HResult(HResultE e) : Value(static_cast<i32>(e)) // NOLINT(*-explicit-constructor)
         {
         }
 
