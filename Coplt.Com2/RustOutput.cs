@@ -126,12 +126,16 @@ public record RustOutput : AOutput
                 var underlying = ToRustName(a.UnderlyingType);
                 sb.AppendLine();
                 // todo flags
+                var value_cache = new Dictionary<string, string>();
                 sb.AppendLine($"#[repr({underlying})]");
                 sb.AppendLine($"#[derive(Debug, Clone, Copy, PartialEq, PartialOrd)]");
                 sb.AppendLine($"pub enum {name} {{");
                 foreach (var item in a.Items)
                 {
-                    sb.AppendLine($"    {item.Name} = {item.Value},");
+                    if (value_cache.TryAdd(item.Value, item.Name))
+                    {
+                        sb.AppendLine($"    {item.Name} = {item.Value},");
+                    }
                 }
                 sb.AppendLine($"}}");
                 return sb.ToString();
