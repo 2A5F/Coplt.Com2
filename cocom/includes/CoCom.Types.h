@@ -52,6 +52,14 @@ namespace Coplt
     }
 
     using namespace Types;
+
+#ifndef COPLT_STR16
+#ifdef _WINDOWS
+#define COPLT_STR16(quote) L##quote
+#else
+#define COPLT_STR16(quote) u##quote
+#endif
+#endif
 }
 
 #endif //COPLT_COM_TYPES_H
