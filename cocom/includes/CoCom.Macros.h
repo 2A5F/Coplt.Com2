@@ -18,6 +18,14 @@
 #endif
 #endif
 
+#ifndef COPLT_RELEASE_FORCE_INLINE
+#ifndef _DEBUG
+#define COPLT_RELEASE_FORCE_INLINE COPLT_FORCE_INLINE
+#else
+#define COPLT_RELEASE_FORCE_INLINE
+#endif
+#endif
+
 #ifndef COPLT_NO_INLINE
 #ifdef _MSC_VER
 #define COPLT_NO_INLINE __declspec(noinline)
