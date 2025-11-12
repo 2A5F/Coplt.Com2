@@ -798,7 +798,7 @@ public record InterfaceDeclareSymbol : ADeclareSymbol
     public bool Export { get; set; }
     public Guid Guid { get; set; }
     public InterfaceDeclareSymbol? Parent { get; set; }
-    public List<InterfaceMethod> Methods { get; set; }
+    public List<InterfaceMethod> Methods { get; set; } = [];
 }
 
 [Flags]
