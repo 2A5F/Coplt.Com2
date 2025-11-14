@@ -343,7 +343,7 @@ public record CppOutput : AOutput
                 {
                     var ret_struct_ptr = method.ReturnType.Kind.IsStruct && !IsMarshalAs(method.ReturnType);
                     var ret_type = ToCppName(method.ReturnType, ns_pre, true);
-                    sb.Append($"    extern \"C\" {ret_type}");
+                    sb.Append($"    {ret_type}");
                     if (ret_struct_ptr) sb.Append("*");
                     sb.Append($" COPLT_CDECL {method.Name}(");
                     if ((method.Flags & MethodFlags.Const) != 0) sb.Append($"const ");
@@ -538,7 +538,7 @@ public record CppOutput : AOutput
                     var ret_is_marshal_as = IsMarshalAs(method.ReturnType);
                     var ret_struct_ptr = method.ReturnType.Kind.IsStruct && !ret_is_marshal_as;
                     var ret_type = ToCppName(method.ReturnType, ns_pre, true);
-                    sb.Append($"    extern \"C\" inline {ret_type}");
+                    sb.Append($"    inline {ret_type}");
                     if (ret_struct_ptr) sb.Append("*");
                     sb.Append($" COPLT_CDECL {method.Name}(");
                     if ((method.Flags & MethodFlags.Const) != 0) sb.Append($"const ");
