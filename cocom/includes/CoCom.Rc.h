@@ -32,7 +32,8 @@ namespace Coplt
 
         // clone
         template <class = void> requires ReferenceCounting<T>
-        explicit Rc(T* ptr, clone_t) : m_ptr(ptr)
+        explicit Rc(T* ptr, clone_t)
+            : m_ptr(ptr)
         {
             if (auto p = m_ptr)
             {
@@ -42,7 +43,8 @@ namespace Coplt
 
         // upgrade
         template <class = void> requires WeakReferenceCounting<T>
-        explicit Rc(T* ptr, upgrade_t) : m_ptr(ptr && ptr->TryUpgrade() ? ptr : nullptr)
+        explicit Rc(T* ptr, upgrade_t)
+            : m_ptr(ptr && ptr->TryUpgrade() ? ptr : nullptr)
         {
         }
 
@@ -50,44 +52,51 @@ namespace Coplt
         using DerefType = T;
 
         // null
-        Rc() noexcept : m_ptr(nullptr)
+        Rc() noexcept
+            : m_ptr(nullptr)
         {
             static_assert(ReferenceCounting<T>);
         }
 
         // null
         // ReSharper disable once CppNonExplicitConvertingConstructor
-        Rc(std::nullptr_t) noexcept : m_ptr(nullptr) // NOLINT(*-explicit-constructor)
+        Rc(std::nullptr_t) noexcept
+            : m_ptr(nullptr) // NOLINT(*-explicit-constructor)
         {
             static_assert(ReferenceCounting<T>);
         }
 
         // create
-        explicit Rc(T* ptr) noexcept : m_ptr(ptr)
+        explicit Rc(T* ptr) noexcept
+            : m_ptr(ptr)
         {
         }
 
         // copy
-        Rc(const Rc& other) noexcept : Rc(other.m_ptr, clone_t{})
+        Rc(const Rc& other) noexcept
+            : Rc(other.m_ptr, clone_t{})
         {
         }
 
         // copy conv
         template <typename U> requires std::convertible_to<U*, T*>
         // ReSharper disable once CppNonExplicitConvertingConstructor
-        Rc(const Rc<U>& other) noexcept : Rc(other.m_ptr, clone_t{}) // NOLINT(*-explicit-constructor)
+        Rc(const Rc<U>& other) noexcept
+            : Rc(other.m_ptr, clone_t{}) // NOLINT(*-explicit-constructor)
         {
         }
 
         // move
-        Rc(Rc&& other) noexcept : m_ptr(std::exchange(other.m_ptr, nullptr))
+        Rc(Rc&& other) noexcept
+            : m_ptr(std::exchange(other.m_ptr, nullptr))
         {
         }
 
         // move conv
         template <typename U> requires std::convertible_to<U*, T*>
         // ReSharper disable once CppNonExplicitConvertingConstructor
-        Rc(Rc<U>&& other) noexcept : m_ptr(std::exchange(other.m_ptr, nullptr)) // NOLINT(*-explicit-constructor)
+        Rc(Rc<U>&& other) noexcept
+            : m_ptr(std::exchange(other.m_ptr, nullptr)) // NOLINT(*-explicit-constructor)
         {
         }
 
@@ -170,17 +179,17 @@ namespace Coplt
 
         T& operator*() const
         {
-#ifdef COPLT_NULL_CHECK
+            #ifdef COPLT_NULL_CHECK
             if (m_ptr == nullptr) [[unlikely]] throw NullPointerError();
-#endif
+            #endif
             return *m_ptr;
         }
 
         T* operator->() const
         {
-#ifdef COPLT_NULL_CHECK
+            #ifdef COPLT_NULL_CHECK
             if (m_ptr == nullptr) [[unlikely]] throw NullPointerError();
-#endif
+            #endif
             return m_ptr;
         }
 
@@ -215,6 +224,30 @@ namespace Coplt
         {
             return Rc(ptr, clone_t{});
         }
+
+        template <class U> requires requires (T* ptr) { static_cast<U*>(ptr); }
+        Rc<U> StaticCast() const
+        {
+            return Rc<U>(static_cast<U*>(m_ptr), typename Rc<U>::clone_t{});
+        }
+
+        template <class U> requires requires (T* ptr) { static_cast<U*>(ptr); }
+        Rc<U> StaticCastMove()
+        {
+            return Rc<U>(static_cast<U*>(std::exchange(m_ptr, nullptr)));
+        }
+
+        template <class U> requires requires (T* ptr) { dynamic_cast<U*>(ptr); }
+        Rc<U> DynamicCast() const
+        {
+            return Rc<U>(dynamic_cast<U*>(m_ptr), typename Rc<U>::clone_t{});
+        }
+
+        template <class U> requires requires (T* ptr) { dynamic_cast<U*>(ptr); }
+        Rc<U> DynamicCastMove()
+        {
+            return Rc<U>(dynamic_cast<U*>(std::exchange(m_ptr, nullptr)));
+        }
     };
 
     template <class T>
@@ -238,7 +271,8 @@ namespace Coplt
 
         // clone
         template <class = void> requires WeakReferenceCounting<T>
-        explicit Weak(T* ptr, clone_t) : m_ptr(ptr)
+        explicit Weak(T* ptr, clone_t)
+            : m_ptr(ptr)
         {
             if (auto p = m_ptr)
             {
@@ -248,7 +282,8 @@ namespace Coplt
 
         // downgrade
         template <class = void> requires WeakReferenceCounting<T>
-        explicit Weak(T* ptr, downgrade_t) : m_ptr(ptr && ptr->TryDowngrade() ? ptr : nullptr)
+        explicit Weak(T* ptr, downgrade_t)
+            : m_ptr(ptr && ptr->TryDowngrade() ? ptr : nullptr)
         {
         }
 
@@ -256,39 +291,45 @@ namespace Coplt
         using DerefType = T;
 
         // null
-        Weak() noexcept : m_ptr(nullptr)
+        Weak() noexcept
+            : m_ptr(nullptr)
         {
             static_assert(WeakReferenceCounting<T>);
         }
 
         // null
         // ReSharper disable once CppNonExplicitConvertingConstructor
-        Weak(std::nullptr_t) noexcept : m_ptr(nullptr) // NOLINT(*-explicit-constructor)
+        Weak(std::nullptr_t) noexcept
+            : m_ptr(nullptr) // NOLINT(*-explicit-constructor)
         {
             static_assert(WeakReferenceCounting<T>);
         }
 
         // copy
-        Weak(const Weak& other) noexcept : Weak(other.m_ptr, clone_t{})
+        Weak(const Weak& other) noexcept
+            : Weak(other.m_ptr, clone_t{})
         {
         }
 
         // copy conv
         template <typename U> requires std::convertible_to<U*, T*>
         // ReSharper disable once CppNonExplicitConvertingConstructor
-        Weak(const Weak<U>& other) noexcept : Weak(other.m_ptr, clone_t{}) // NOLINT(*-explicit-constructor)
+        Weak(const Weak<U>& other) noexcept
+            : Weak(other.m_ptr, clone_t{}) // NOLINT(*-explicit-constructor)
         {
         }
 
         // move
-        Weak(Weak&& other) noexcept : m_ptr(std::exchange(other.m_ptr, nullptr))
+        Weak(Weak&& other) noexcept
+            : m_ptr(std::exchange(other.m_ptr, nullptr))
         {
         }
 
         // move conv
         template <typename U> requires std::convertible_to<U*, T*>
         // ReSharper disable once CppNonExplicitConvertingConstructor
-        Weak(Weak<U>&& other) noexcept : m_ptr(std::exchange(other.m_ptr, nullptr)) // NOLINT(*-explicit-constructor)
+        Weak(Weak<U>&& other) noexcept
+            : m_ptr(std::exchange(other.m_ptr, nullptr)) // NOLINT(*-explicit-constructor)
         {
         }
 
