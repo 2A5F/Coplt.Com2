@@ -262,3 +262,17 @@ public unsafe struct StrAny : IEquatable<StrAny>
         };
     }
 }
+
+public static unsafe class StrExtensions
+{
+    extension(StrKind kind)
+    {
+        public string GetString(void* ptr, int len) => kind.GetString(ptr, (uint)len);
+        public string GetString(void* ptr, uint len) => kind switch
+        {
+            StrKind.Str8 => new Str8((byte*)ptr, len).ToString(),
+            StrKind.Str16 => new Str16((char*)ptr, len).ToString(),
+            _ => throw new ArgumentOutOfRangeException(nameof(kind), kind, null)
+        };
+    }
+}
