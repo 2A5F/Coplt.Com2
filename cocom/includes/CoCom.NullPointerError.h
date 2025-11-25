@@ -9,7 +9,7 @@
 
 namespace Coplt
 {
-    class NullPointerError : public std::exception
+    class NullPointerError : public std::runtime_error
     {
         mutable std::string m_message;
         std::stacktrace m_stacktrace;
@@ -18,13 +18,15 @@ namespace Coplt
         explicit NullPointerError(
             char const* const message,
             std::stacktrace stacktrace = std::stacktrace::current()
-        ) : std::exception(message), m_stacktrace(std::move(stacktrace))
+        )
+            : std::runtime_error(message), m_stacktrace(std::move(stacktrace))
         {
         }
 
         explicit NullPointerError(
             std::stacktrace stacktrace = std::stacktrace::current()
-        ) : m_stacktrace(std::move(stacktrace))
+        )
+            : std::runtime_error("null pointer"), m_stacktrace(std::move(stacktrace))
         {
         }
 
