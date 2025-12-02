@@ -5,3 +5,4 @@ version = "0.1.0"
 
 [dependencies]
 concat-idents = "1"
+cocom_proc = {path = "../cocom_rs_proc"}

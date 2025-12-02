@@ -1,6 +1,7 @@
 ﻿using System.Collections.Concurrent;
 using System.Collections.Frozen;
 using System.Collections.Immutable;
+using System.Text.Json.Serialization;
 using AsmResolver.DotNet;
 using AsmResolver.DotNet.Collections;
 using AsmResolver.DotNet.Signatures.Types;
@@ -95,8 +96,7 @@ internal class SymbolDb
     {
         #region Types Tmp
 
-        var types_tmp = Symbols
-            .AsParallel()
+        var types_tmp = Symbols.AsParallel().Concat(StaticSymbols.AsParallel())
             .OrderBy(a => a.Key, StringComparer.Ordinal)
             .Select(a => a.Value)
             .Select((a, i) =>

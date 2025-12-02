@@ -1,0 +1,150 @@
+#![allow(dead_code)]
+
+use proc_macro::TokenStream;
+use quote::{format_ident, quote};
+use syn::{
+    Attribute, Ident, LitStr, Token, TraitItemFn, Visibility, braced, parse::Parse,
+    parse_macro_input, token::Brace,
+};
+
+struct InterfaceAttr {
+    guid_lit: LitStr,
+    guid: uuid::Uuid,
+}
+
+impl Parse for InterfaceAttr {
+    fn parse(input: syn::parse::ParseStream) -> syn::Result<Self> {
+        let guid_lit: LitStr = input.parse()?;
+        let guid = uuid::Uuid::parse_str(&guid_lit.value())
+            .map_err(|e| syn::Error::new(guid_lit.span(), e.to_string()))?;
+        Ok(Self { guid_lit, guid })
+    }
+}
+
+struct ItemInterface {
+    pub attrs: Vec<Attribute>,
+    pub vis: Visibility,
+    pub trait_token: Token![trait],
+    pub ident: Ident,
+    pub colon_token: Token![:],
+    pub parent: Ident,
+    pub brace_token: Brace,
+    pub items: Vec<TraitItemFn>,
+}
+
+impl Parse for ItemInterface {
+    fn parse(input: syn::parse::ParseStream) -> syn::Result<Self> {
+        let outer_attrs = input.call(Attribute::parse_outer)?;
+        let vis: Visibility = input.parse()?;
+        let trait_token: Token![trait] = input.parse()?;
+        let ident: Ident = input.parse()?;
+        let colon_token: Token![:] = input.parse()?;
+        let parent: Ident = input.parse()?;
+        let content;
+        let brace_token = braced!(content in input);
+        let mut items: Vec<TraitItemFn> = Vec::new();
+        while !content.is_empty() {
+            items.push(content.parse()?);
+        }
+        Ok(ItemInterface {
+            attrs: outer_attrs,
+            vis,
+            trait_token,
+            ident,
+            colon_token,
+            parent,
+            brace_token,
+            items,
+        })
+    }
+}
+
+#[proc_macro_attribute]
+pub fn interface(attr: TokenStream, item: TokenStream) -> TokenStream {
+    let attr = parse_macro_input!(attr as InterfaceAttr);
+    let item = parse_macro_input!(item as ItemInterface);
+    let attrs = &item.attrs;
+    let vis = &item.vis;
+    let name = &item.ident;
+    let parent = &item.parent;
+    let guid = attr.guid_lit.value();
+    let name_str = name.to_string();
+    let vtbl_name = format_ident!("VitualTable_{}", name_str);
+    let methods = item.items.iter().map(|item| {
+        let attrs = &item.attrs;
+        let ident = &item.sig.ident;
+        let inputs = &item.sig.inputs;
+        let args = inputs.iter().skip(1).map(|arg| match arg {
+            syn::FnArg::Typed(t) => {
+                let pat = &t.pat;
+                quote! {#pat}
+            }
+            _ => quote! {},
+        });
+        let f_name = format_ident!("f_{}", ident);
+        let ret = &item.sig.output;
+        quote! {
+            #(#attrs)*
+            fn #ident(#inputs) #ret {
+                unsafe { ((*self.v_ptr()).#f_name)(self as _, #(#args),*) }
+            }
+        }
+    });
+    quote! {
+        #(#attrs)*
+        #[repr(C)]
+        #vis struct #name {
+            base: #parent,
+        }
+
+        impl #name {
+            pub const fn new(v_ptr: *const details::#vtbl_name) -> Self {
+                Self {
+                    base: #parent::new(v_ptr as *const <#parent as Interface>::VitualTable),
+                }
+            }
+
+            #[inline(always)]
+            pub fn v_ptr(&self) -> *const details::#vtbl_name {
+                self.base.v_ptr() as *const _
+            }
+        }
+
+        impl cocom::Interface for #name
+        {
+            const GUID: Guid = Guid::from_str(#guid).unwrap();
+            type VitualTable = details::#vtbl_name;
+            type Parent = #parent;
+        }
+
+        impl core::fmt::Debug for #name {
+            fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {
+                f.debug_struct(#name_str).finish()
+            }
+        }
+
+        impl core::ops::Deref for #name {
+            type Target = #parent;
+
+            fn deref(&self) -> &Self::Target {
+                &self.base
+            }
+        }
+
+        impl core::ops::DerefMut for #name {
+            fn deref_mut(&mut self) -> &mut Self::Target {
+                &mut self.base
+            }
+        }
+
+        impl #name {
+            #(#methods)*
+        }
+    }
+    .into()
+}
+
+#[proc_macro_attribute]
+pub fn object(_attr: TokenStream, item: TokenStream) -> TokenStream {
+    item
+}

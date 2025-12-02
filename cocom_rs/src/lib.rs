@@ -5,6 +5,8 @@
 
 extern crate alloc;
 
+pub use cocom_proc::*;
+
 use core::fmt::Debug;
 use core::ops::{Deref, DerefMut};
 
@@ -169,7 +171,8 @@ impl Interface for IUnknown {
 }
 
 impl IUnknown {
-    fn v_ptr(&self) -> *const details::VitualTable_IUnknown {
+    #[inline(always)]
+    pub fn v_ptr(&self) -> *const details::VitualTable_IUnknown {
         self.v_ptr as *const _
     }
 
@@ -279,12 +282,13 @@ impl DerefMut for IWeak {
 }
 
 impl IWeak {
-    fn v_ptr(&self) -> *const details::VitualTable_IWeak {
+    #[inline(always)]
+    pub fn v_ptr(&self) -> *const details::VitualTable_IWeak {
         self.base.v_ptr() as *const _
     }
 
     pub fn AddRefWeak(&self) -> u32 {
-        unsafe { ((*self.v_ptr()).f_AddRefWeak)(self as *const _) }
+        unsafe { ((*self.v_ptr()).f_AddRefWeak)(self as _) }
     }
 
     pub fn ReleaseWeak(&self) -> u32 {

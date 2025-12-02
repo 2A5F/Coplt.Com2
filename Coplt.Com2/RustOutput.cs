@@ -23,8 +23,21 @@ public record RustOutput : AOutput
         var sb = new StringBuilder();
         sb.AppendLine("#![allow(unused)]");
         sb.AppendLine("#![allow(non_snake_case)]");
+        sb.AppendLine("#![allow(non_camel_case_types)]");
+
+        sb.AppendLine();
+        sb.AppendLine("use cocom::{Guid, Interface, IUnknown, IWeak};");
 
         GenTypes(db, sb);
+
+        sb.AppendLine();
+        sb.AppendLine("pub mod details {");
+        sb.AppendLine("    use cocom::details::*;");
+        sb.AppendLine("    use super::*;");
+        sb.AppendLine();
+        GenInterfacesDetails(db, sb);
+        sb.AppendLine("}");
+
         GenInterfaces(db, sb);
 
         await File.WriteAllTextAsync(Path, sb.ToString());
@@ -52,8 +65,8 @@ public record RustOutput : AOutput
             }
             case TypeKind.Fn:
             {
-                var arg = symbol.GenericsOrParams.IsDefaultOrEmpty ? "" : $", {string.Join(", ", symbol.GenericsOrParams.Select(ToRustName))}";
-                return $"fn({arg}) -> {ToRustName(symbol.TargetOrReturn!)}";
+                var arg = symbol.GenericsOrParams.IsDefaultOrEmpty ? "" : $"{string.Join(", ", symbol.GenericsOrParams.Select(ToRustName))}";
+                return $"unsafe extern \"C\" fn({arg}) -> {ToRustName(symbol.TargetOrReturn!)}";
             }
             case TypeKind.Void:
                 return "()";
@@ -192,6 +205,44 @@ public record RustOutput : AOutput
         #endregion
     }
 
+    internal void GenInterfacesDetails(SymbolDb db, StringBuilder root_sb)
+    {
+        #region Interfaces
+
+        var interfaces = db.Interfaces
+            .AsParallel()
+            .OrderBy(a => a.Key, StringComparer.Ordinal)
+            .Select(a => a.Value)
+            .Select(a =>
+            {
+                var sb = new StringBuilder();
+                var name = a.Name;
+                var parent = a.Parent?.Name ?? "IUnknown";
+                sb.AppendLine();
+                sb.AppendLine($"    #[repr(C)]");
+                sb.AppendLine($"    #[derive(Debug)]");
+                sb.AppendLine($"    pub struct VitualTable_{name} {{");
+                sb.AppendLine($"        b: <{parent} as Interface>::VitualTable,");
+                sb.AppendLine();
+                foreach (var method in a.Methods)
+                {
+                    sb.Append($"        pub f_{method.Name}: unsafe extern \"C\" fn(this: *{((method.Flags & MethodFlags.Const) != 0 ? "const" : "mut")} {name}");
+                    foreach (var param in method.Params)
+                    {
+                        sb.Append(", ");
+                        var o = (param.Flags & ParamFlags.Out) != 0 ? "/* out */ " : "";
+                        sb.Append($"{o}{param.Name}: {ToRustName(param.Type)}");
+                    }
+                    sb.AppendLine($") -> {ToRustName(method.ReturnType)},");
+                }
+                sb.AppendLine($"    }}");
+                return sb.ToString();
+            }).ToList();
+        root_sb.AppendJoin("", interfaces);
+
+        #endregion
+    }
+
     internal void GenInterfaces(SymbolDb db, StringBuilder root_sb)
     {
         #region Interfaces
@@ -206,35 +257,20 @@ public record RustOutput : AOutput
                 var name = a.Name;
                 var parent = a.Parent?.Name ?? "IUnknown";
                 sb.AppendLine();
-                sb.AppendLine($"#[repr(C)]");
-                sb.AppendLine($"pub struct {name} {{");
+                sb.AppendLine($"#[cocom::interface(\"{a.Guid:D}\")]");
+                sb.AppendLine($"pub trait {name} : {parent} {{");
+                foreach (var method in a.Methods)
+                {
+                    sb.Append($"    fn {method.Name}(&{((method.Flags & MethodFlags.Const) != 0 ? "" : "mut ")}self");
+                    foreach (var param in method.Params)
+                    {
+                        sb.Append(", ");
+                        var o = (param.Flags & ParamFlags.Out) != 0 ? "/* out */ " : "";
+                        sb.Append($"{o}{param.Name}: {ToRustName(param.Type)}");
+                    }
+                    sb.AppendLine($") -> {ToRustName(method.ReturnType)};");
+                }
                 sb.AppendLine($"}}");
-                sb.AppendLine();
-                sb.AppendLine($"impl {name} {{");
-                sb.AppendLine($"}}");
-                // sb.AppendLine($"COPLT_COM_INTERFACE({name}, \"{a.Guid:D}\", {parent})");
-                // sb.AppendLine($"{{");
-                // sb.AppendLine($"    COPLT_COM_INTERFACE_BODY_{Namespace}_{name}");
-                // if (a.Methods.Count > 0) sb.AppendLine();
-                // foreach (var method in a.Methods)
-                // {
-                //     sb.Append($"    COPLT_COM_METHOD({method.Name}, {ToCppName(method.ReturnType, ns_pre)}, (");
-                //     var first = true;
-                //     foreach (var param in method.Params)
-                //     {
-                //         if (first) first = false;
-                //         else sb.Append(", ");
-                //         var o = (param.Flags & ParamFlags.Out) != 0 ? "COPLT_OUT " : "";
-                //         sb.Append($"{o}{ToCppName(param.Type, ns_pre)} {param.Name}");
-                //     }
-                //     sb.Append($"){((method.Flags & MethodFlags.Const) != 0 ? " const" : "")}");
-                //     foreach (var param in method.Params)
-                //     {
-                //         sb.Append($", {param.Name}");
-                //     }
-                //     sb.AppendLine($");");
-                // }
-                // sb.AppendLine($"}};");
                 return sb.ToString();
             }).ToList();
         root_sb.AppendJoin("", interfaces);

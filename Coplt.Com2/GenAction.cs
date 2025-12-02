@@ -55,6 +55,7 @@ public class GenAction(Option<FileInfo> ConfigPath) : AsynchronousCommandLineAct
                 case JsonOutput:
                 {
                     var com_define = db.ToComDefine();
+                    if (Path.GetDirectoryName(output.Path) is { } dir) Directory.CreateDirectory(dir);
                     await using var dst = File.Open(output.Path, FileMode.Create, FileAccess.ReadWrite, FileShare.ReadWrite);
                     await JsonSerializer.SerializeAsync(dst, com_define, ComDefineJsonContext.Default.ComDefine, cancel);
                     break;
