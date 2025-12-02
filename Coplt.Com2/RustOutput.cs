@@ -28,22 +28,21 @@ public record RustOutput : AOutput
         sb.AppendLine();
         sb.AppendLine("use cocom::{Guid, Interface, IUnknown, IWeak};");
 
+        GenInterfaces(db, sb);
         GenTypes(db, sb);
 
         sb.AppendLine();
         sb.AppendLine("pub mod details {");
         sb.AppendLine("    use cocom::details::*;");
         sb.AppendLine("    use super::*;");
-        sb.AppendLine();
         GenInterfacesDetails(db, sb);
         sb.AppendLine("}");
-
-        GenInterfaces(db, sb);
 
         await File.WriteAllTextAsync(Path, sb.ToString());
     }
 
-    internal static string ToRustName(TypeSymbol symbol)
+    private static string NonRootToRustName(TypeSymbol symbol) => ToRustName(symbol, false);
+    private static string ToRustName(TypeSymbol symbol, bool is_root = true)
     {
         switch (symbol.Kind)
         {
@@ -53,7 +52,7 @@ public record RustOutput : AOutput
                 return $"T{symbol.Index}";
             case TypeKind.Struct:
                 if (!symbol.GenericsOrParams.IsDefaultOrEmpty)
-                    return $"{symbol.Name}<{string.Join(", ", symbol.GenericsOrParams.Select(ToRustName))}>";
+                    return $"{symbol.Name}<{string.Join(", ", symbol.GenericsOrParams.Select(NonRootToRustName))}>";
                 return $"{symbol.Name}";
             case TypeKind.Enum:
                 return $"{symbol.Name}";
@@ -61,15 +60,15 @@ public record RustOutput : AOutput
             case TypeKind.Ref:
             {
                 var c = (symbol.Flags & TypeFlags.Const) != 0 ? "const " : "mut ";
-                return $"*{c}{ToRustName(symbol.TargetOrReturn!)}";
+                return $"*{c}{NonRootToRustName(symbol.TargetOrReturn!)}";
             }
             case TypeKind.Fn:
             {
-                var arg = symbol.GenericsOrParams.IsDefaultOrEmpty ? "" : $"{string.Join(", ", symbol.GenericsOrParams.Select(ToRustName))}";
-                return $"unsafe extern \"C\" fn({arg}) -> {ToRustName(symbol.TargetOrReturn!)}";
+                var arg = symbol.GenericsOrParams.IsDefaultOrEmpty ? "" : $"{string.Join(", ", symbol.GenericsOrParams.Select(NonRootToRustName))}";
+                return $"unsafe extern \"C\" fn({arg}) -> {NonRootToRustName(symbol.TargetOrReturn!)}";
             }
             case TypeKind.Void:
-                return "()";
+                return is_root ? "()" : "core::ffi::c_void";
             case TypeKind.Bool:
                 return "bool";
             case TypeKind.Int8:
@@ -226,7 +225,8 @@ public record RustOutput : AOutput
                 sb.AppendLine();
                 foreach (var method in a.Methods)
                 {
-                    sb.Append($"        pub f_{method.Name}: unsafe extern \"C\" fn(this: *{((method.Flags & MethodFlags.Const) != 0 ? "const" : "mut")} {name}");
+                    sb.Append(
+                        $"        pub f_{method.Name}: unsafe extern \"C\" fn(this: *{((method.Flags & MethodFlags.Const) != 0 ? "const" : "mut")} {name}");
                     foreach (var param in method.Params)
                     {
                         sb.Append(", ");

@@ -35,9 +35,15 @@ pub mod details {
 
     use super::*;
 
-    pub struct VT<T, V>(core::marker::PhantomData<(T, V)>);
+    pub trait Vtbl<O>: Interface {
+        const VTBL: Self::VitualTable;
+    }
 
-    pub struct QI<T, I>(core::marker::PhantomData<(T, I)>);
+    struct VT<T, V>(core::marker::PhantomData<(T, V)>);
+
+    pub trait QuIn<O: impls::ObjectQueryInterface>: Interface {
+        fn QueryInterface(this: &O::Object, guid: &Guid, out: &mut *mut ()) -> HResult;
+    }
 
     #[repr(C)]
     #[derive(Debug)]
@@ -74,6 +80,10 @@ pub mod details {
         unsafe extern "C" fn f_Release(this: *const IUnknown) -> u32 {
             unsafe { (*(this as *const <T as impls::ObjectQueryInterface>::Object)).Release() }
         }
+    }
+
+    impl<T: impls::IUnknown + impls::ObjectQueryInterface> Vtbl<T> for IUnknown {
+        const VTBL: <IUnknown as Interface>::VitualTable = VT::<T, IUnknown>::VTBL;
     }
 
     #[repr(C)]
@@ -113,8 +123,15 @@ pub mod details {
         }
     }
 
-    impl<T: impls::ObjectQueryInterface + impls::IUnknown> QI<T, IUnknown> {
-        pub fn QueryInterface(
+    impl<T: impls::IWeak + impls::ObjectQueryInterface> Vtbl<T> for IWeak
+    where
+        <T as impls::ObjectQueryInterface>::Object: impls::WeakRefCount,
+    {
+        const VTBL: <IWeak as Interface>::VitualTable = VT::<T, IWeak>::VTBL;
+    }
+
+    impl<T: impls::ObjectQueryInterface + impls::IUnknown> QuIn<T> for IUnknown {
+        fn QueryInterface(
             this: &<T as impls::ObjectQueryInterface>::Object,
             guid: &Guid,
             out: &mut *mut (),
@@ -128,8 +145,8 @@ pub mod details {
         }
     }
 
-    impl<T: impls::ObjectQueryInterface + impls::IWeak> QI<T, IWeak> {
-        pub fn QueryInterface(
+    impl<T: impls::ObjectQueryInterface + impls::IWeak> QuIn<T> for IWeak {
+        fn QueryInterface(
             this: &<T as impls::ObjectQueryInterface>::Object,
             guid: &Guid,
             out: &mut *mut (),
@@ -139,7 +156,7 @@ pub mod details {
                 unsafe { this.AddRef() };
                 return HResultE::Ok.into();
             }
-            QI::<T, IUnknown>::QueryInterface(this, guid, out)
+            <IUnknown as QuIn<T>>::QueryInterface(this, guid, out)
         }
     }
 }
@@ -385,7 +402,7 @@ pub mod impls {
                 type Object = crate::object::WeakObject<Self>;
 
                 fn QueryInterface(this: &Self::Object, guid: &crate::Guid, out: &mut *mut ()) -> crate::HResult {
-                    details::QI::<Self, $I>::QueryInterface(this, guid, out)
+                    <$I as details::QuIn<Self>>::QueryInterface(this, guid, out)
                 }
             }
 
@@ -401,7 +418,7 @@ pub mod impls {
                             {
                                 crate::object::WeakObject::new(
                                     Self::fn_name(
-                                        $I::new(&details::VT::<Self, $I>::VTBL)
+                                        $I::new(&<$I as details::Vtbl<Self>>::VTBL)
                                         $(, $ai)*
                                     )
                                 ).upcast()
