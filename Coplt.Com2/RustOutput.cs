@@ -264,7 +264,7 @@ public record RustOutput : AOutput
                 foreach (var method in a.Methods)
                 {
                     sb.Append(
-                        $"        pub f_{method.Name}: unsafe extern \"C\" fn(this: *{((method.Flags & MethodFlags.Const) != 0 ? "const" : "mut")} {name}");
+                        $"        pub f_{method.Name}: unsafe extern \"C\" fn(this: *const {name}");
                     foreach (var param in method.Params)
                     {
                         sb.Append(", ");

@@ -74,6 +74,7 @@ pub fn interface(attr: TokenStream, item: TokenStream) -> TokenStream {
         let attrs = &item.attrs;
         let ident = &item.sig.ident;
         let inputs = &item.sig.inputs;
+        let params = inputs.iter().skip(1);
         let args = inputs.iter().skip(1).map(|arg| match arg {
             syn::FnArg::Typed(t) => {
                 let pat = &t.pat;
@@ -85,7 +86,7 @@ pub fn interface(attr: TokenStream, item: TokenStream) -> TokenStream {
         let ret = &item.sig.output;
         quote! {
             #(#attrs)*
-            pub fn #ident(#inputs) #ret {
+            pub fn #ident(&self, #(#params),*) #ret {
                 unsafe { ((*self.v_ptr()).#f_name)(self as _, #(#args),*) }
             }
         }
@@ -115,6 +116,10 @@ pub fn interface(attr: TokenStream, item: TokenStream) -> TokenStream {
             const GUID: Guid = Guid::from_str(#guid).unwrap();
             type VitualTable = details::#vtbl_name;
             type Parent = #parent;
+
+            fn new(v_ptr: &'static details::#vtbl_name) -> Self {
+                Self::new(v_ptr)
+            }
         }
 
         impl core::fmt::Debug for #name {

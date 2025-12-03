@@ -1,6 +1,8 @@
 use alloc::{boxed::Box, sync::Arc};
 use core::{
+    borrow::Borrow,
     cell::UnsafeCell,
+    hash::Hash,
     mem::ManuallyDrop,
     ptr::{NonNull, drop_in_place},
     sync::atomic::{AtomicU32, Ordering},
@@ -13,15 +15,19 @@ use crate::{
 };
 
 pub trait MakeObject {
-    type Output;
+    type ComOutput;
+    type ObjOutput;
 
-    fn make_object(self) -> Self::Output;
+    fn make_com(self) -> Self::ComOutput;
+    fn make_object(self) -> Self::ObjOutput;
 }
 
 pub trait MakeObjectWeak {
-    type Output;
+    type ComOutput;
+    type ObjOutput;
 
-    fn make_object_weak(self) -> Self::Output;
+    fn make_com_weak(self) -> Self::ComOutput;
+    fn make_object_weak(self) -> Self::ObjOutput;
 }
 
 impl<T: impls::Object> MakeObject for T
@@ -29,9 +35,18 @@ where
     T::Interface: RefCount,
     Object<T>: impls::ObjectBox<Object = T> + impls::ObjectBoxNew,
 {
-    type Output = ComPtr<T::Interface>;
+    type ComOutput = ComPtr<T::Interface>;
+    type ObjOutput = ObjectPtr<T>;
 
-    fn make_object(self) -> Self::Output {
+    fn make_object(self) -> Self::ObjOutput {
+        unsafe {
+            ObjectPtr(ComPtr::new(NonNull::new_unchecked(
+                <Object<T> as impls::ObjectBoxNew>::make(self),
+            )))
+        }
+    }
+
+    fn make_com(self) -> Self::ComOutput {
         unsafe {
             ComPtr::new(NonNull::new_unchecked(
                 <Object<T> as impls::ObjectBoxNew>::new(self),
@@ -45,13 +60,22 @@ where
     T::Interface: RefCount + WeakRefCount,
     WeakObject<T>: impls::ObjectBox<Object = T> + impls::ObjectBoxNew,
 {
-    type Output = ComPtr<T::Interface>;
+    type ComOutput = ComPtr<T::Interface>;
+    type ObjOutput = WeakObjectPtr<T>;
 
-    fn make_object_weak(self) -> Self::Output {
+    fn make_com_weak(self) -> Self::ComOutput {
         unsafe {
             ComPtr::new(NonNull::new_unchecked(
                 <WeakObject<T> as impls::ObjectBoxNew>::new(self),
             ))
+        }
+    }
+
+    fn make_object_weak(self) -> Self::ObjOutput {
+        unsafe {
+            WeakObjectPtr(ComPtr::new(NonNull::new_unchecked(
+                <WeakObject<T> as impls::ObjectBoxNew>::make(self),
+            )))
         }
     }
 }
@@ -78,12 +102,16 @@ where
     T::Interface: details::Vtbl<Self>,
 {
     pub fn new(val: T) -> *mut T::Interface {
+        Self::make(val) as _
+    }
+
+    pub fn make(val: T) -> *mut Self {
         let b = Box::leak(Box::new(Self {
-            base: T::Interface::new(&<T::Interface as details::Vtbl<Self>>::VTBL),
+            base: T::Interface::new(<T::Interface as details::Vtbl<Self>>::vtbl()),
             strong: AtomicU32::new(1),
             val: ManuallyDrop::new(val),
         }));
-        b as *mut _ as _
+        b as *mut _
     }
 }
 
@@ -93,6 +121,10 @@ where
 {
     fn new(val: T) -> *mut T::Interface {
         Self::new(val)
+    }
+
+    fn make(val: Self::Object) -> *mut Self {
+        Self::make(val)
     }
 }
 
@@ -115,6 +147,88 @@ impl<T: impls::Object> impls::ObjectBox for Object<T> {
             }
             r
         }
+    }
+}
+
+impl<T: impls::Object> impls::RefCount for Object<T> {
+    fn AddRef(this: *const Self) -> u32 {
+        unsafe { (*this).strong.fetch_add(1, Ordering::Relaxed) }
+    }
+
+    fn Release(this: *const Self) -> u32 {
+        unsafe {
+            let this = this as *mut Self;
+            let r = (*this).strong.fetch_sub(1, Ordering::Release);
+            if r == 1 {
+                Self::Drop(this);
+            }
+            r
+        }
+    }
+}
+
+impl<T: impls::Object> Deref for Object<T> {
+    type Target = T;
+
+    fn deref(&self) -> &Self::Target {
+        &*self.val
+    }
+}
+
+impl<T: impls::Object + PartialEq> PartialEq for Object<T> {
+    fn eq(&self, other: &Self) -> bool {
+        (**self).eq(&**other)
+    }
+}
+
+impl<T: impls::Object + Eq> Eq for Object<T> {}
+
+impl<T: impls::Object + PartialOrd> PartialOrd for Object<T> {
+    fn partial_cmp(&self, other: &Self) -> Option<core::cmp::Ordering> {
+        (**self).partial_cmp(&**other)
+    }
+}
+
+impl<T: impls::Object + Ord> Ord for Object<T> {
+    fn cmp(&self, other: &Self) -> core::cmp::Ordering {
+        (**self).cmp(&**other)
+    }
+}
+
+impl<T: impls::Object + Hash> Hash for Object<T> {
+    fn hash<H: core::hash::Hasher>(&self, state: &mut H) {
+        (**self).hash(state);
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[repr(transparent)]
+pub struct ObjectPtr<T: impls::Object>(ComPtr<Object<T>>);
+
+impl<T: impls::Object> ObjectPtr<T>
+where
+    T::Interface: RefCount,
+{
+    pub fn leak(self) -> *mut T::Interface {
+        unsafe { core::mem::transmute(self) }
+    }
+
+    pub fn to_com(self) -> ComPtr<T::Interface> {
+        unsafe { core::mem::transmute(self) }
+    }
+}
+
+impl<T: impls::Object> Deref for ObjectPtr<T> {
+    type Target = T;
+
+    fn deref(&self) -> &Self::Target {
+        &*self.0.val
+    }
+}
+
+impl<T: impls::Object> AsRef<T::Interface> for ObjectPtr<T> {
+    fn as_ref(&self) -> &T::Interface {
+        &self.0.base
     }
 }
 
@@ -158,13 +272,17 @@ where
     T::Interface: details::Vtbl<Self>,
 {
     pub fn new(val: T) -> *mut T::Interface {
+        Self::make(val) as _
+    }
+
+    pub fn make(val: T) -> *mut Self {
         let b = Box::leak(Box::new(Self {
-            base: T::Interface::new(&<T::Interface as details::Vtbl<Self>>::VTBL),
+            base: T::Interface::new(<T::Interface as details::Vtbl<Self>>::vtbl()),
             strong: AtomicU32::new(1),
             weak: AtomicU32::new(1),
             val: ManuallyDrop::new(val),
         }));
-        b as *mut _ as _
+        b as *mut _
     }
 }
 
@@ -174,6 +292,10 @@ where
 {
     fn new(val: T) -> *mut T::Interface {
         Self::new(val)
+    }
+
+    fn make(val: Self::Object) -> *mut Self {
+        Self::make(val)
     }
 }
 
@@ -252,3 +374,166 @@ where
         }
     }
 }
+
+impl<T: impls::Object> impls::RefCount for WeakObject<T> {
+    fn AddRef(this: *const Self) -> u32 {
+        unsafe { (*this).strong.fetch_add(1, Ordering::Relaxed) }
+    }
+
+    fn Release(this: *const Self) -> u32 {
+        unsafe {
+            let r = (*this).strong.fetch_sub(1, Ordering::Release);
+            if r == 1 {
+                Self::DropSlow(this as _);
+            }
+            r
+        }
+    }
+}
+
+impl<T: impls::Object> impls::WeakRefCount for WeakObject<T> {
+    fn AddRefWeak(this: *const Self) -> u32 {
+        unsafe { (*this).weak.fetch_add(1, Ordering::Relaxed) }
+    }
+
+    fn ReleaseWeak(this: *const Self) -> u32 {
+        unsafe { Self::ReleaseWeak_(this as _) }
+    }
+
+    fn TryUpgrade(this: *const Self) -> bool {
+        #[inline]
+        fn checked_increment(n: u32) -> Option<u32> {
+            if n == 0 {
+                return None;
+            }
+            Some(n + 1)
+        }
+
+        unsafe {
+            (*this)
+                .strong
+                .fetch_update(Ordering::Acquire, Ordering::Relaxed, checked_increment)
+                .is_ok()
+        }
+    }
+
+    fn TryDowngrade(this: *const Self) -> bool {
+        #[inline]
+        fn checked_increment(n: u32) -> Option<u32> {
+            if n == 0 {
+                return None;
+            }
+            Some(n + 1)
+        }
+        unsafe {
+            (*this)
+                .weak
+                .fetch_update(Ordering::Acquire, Ordering::Relaxed, checked_increment)
+                .is_ok()
+        }
+    }
+    // fn AddRefWeak(&self) -> u32 {
+    //     self.weak.fetch_add(1, Ordering::Relaxed)
+    // }
+
+    // fn ReleaseWeak(&self) -> u32 {
+    //     unsafe { Self::ReleaseWeak_(self as *const _ as _) }
+    // }
+
+    // fn TryUpgrade(&self) -> bool {
+    //     #[inline]
+    //     fn checked_increment(n: u32) -> Option<u32> {
+    //         if n == 0 {
+    //             return None;
+    //         }
+    //         Some(n + 1)
+    //     }
+
+    //     self.strong
+    //         .fetch_update(Ordering::Acquire, Ordering::Relaxed, checked_increment)
+    //         .is_ok()
+    // }
+
+    // fn TryDowngrade(&self) -> bool {
+    //     #[inline]
+    //     fn checked_increment(n: u32) -> Option<u32> {
+    //         if n == 0 {
+    //             return None;
+    //         }
+    //         Some(n + 1)
+    //     }
+
+    //     self.weak
+    //         .fetch_update(Ordering::Acquire, Ordering::Relaxed, checked_increment)
+    //         .is_ok()
+    // }
+}
+
+impl<T: impls::Object> Deref for WeakObject<T> {
+    type Target = T;
+
+    fn deref(&self) -> &Self::Target {
+        &*self.val
+    }
+}
+
+impl<T: impls::Object + PartialEq> PartialEq for WeakObject<T> {
+    fn eq(&self, other: &Self) -> bool {
+        (**self).eq(&**other)
+    }
+}
+
+impl<T: impls::Object + Eq> Eq for WeakObject<T> {}
+
+impl<T: impls::Object + PartialOrd> PartialOrd for WeakObject<T> {
+    fn partial_cmp(&self, other: &Self) -> Option<core::cmp::Ordering> {
+        (**self).partial_cmp(&**other)
+    }
+}
+
+impl<T: impls::Object + Ord> Ord for WeakObject<T> {
+    fn cmp(&self, other: &Self) -> core::cmp::Ordering {
+        (**self).cmp(&**other)
+    }
+}
+
+impl<T: impls::Object + Hash> Hash for WeakObject<T> {
+    fn hash<H: core::hash::Hasher>(&self, state: &mut H) {
+        (**self).hash(state);
+    }
+}
+
+#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[repr(transparent)]
+pub struct WeakObjectPtr<T: impls::Object>(ComPtr<WeakObject<T>>);
+
+impl<T: impls::Object> WeakObjectPtr<T>
+where
+    T::Interface: RefCount,
+{
+    pub fn leak(self) -> *mut T::Interface {
+        unsafe { core::mem::transmute(self) }
+    }
+
+    pub fn to_com(self) -> ComPtr<T::Interface> {
+        unsafe { core::mem::transmute(self) }
+    }
+}
+
+impl<T: impls::Object> Deref for WeakObjectPtr<T> {
+    type Target = T;
+
+    fn deref(&self) -> &Self::Target {
+        &*self.0.val
+    }
+}
+
+impl<T: impls::Object> AsRef<T::Interface> for WeakObjectPtr<T> {
+    fn as_ref(&self) -> &T::Interface {
+        &self.0.base
+    }
+}
+
+#[derive(Debug, Clone)]
+#[repr(transparent)]
+pub struct WeakObjectWeak<T: impls::Object>(ComWeak<WeakObject<T>>);
