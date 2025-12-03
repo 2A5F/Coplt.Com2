@@ -5,6 +5,7 @@
 
 extern crate alloc;
 
+use alloc::ffi;
 pub use cocom_proc::*;
 
 use core::fmt::Debug;
@@ -15,22 +16,24 @@ pub mod guid;
 pub mod hresult;
 pub mod object;
 
+pub use com_ptr::*;
 pub use guid::*;
 pub use hresult::*;
+pub use object::{MakeObject, MakeObjectWeak};
 
 pub trait Interface: Debug {
     const GUID: Guid;
     type VitualTable;
     type Parent: Interface;
+
+    fn new(v_ptr: *const Self::VitualTable) -> Self;
 }
 
-use crate::com_ptr::ComPtr;
 use impls::RefCount;
 pub mod details {
     use crate::{
         com_ptr::ComWeak,
-        impls::{QueryInterface, RefCount, WeakRefCount},
-        object::{ComObject, WeakObject},
+        impls::{Object, ObjectBox, ObjectBoxWeak, QueryInterface, RefCount, WeakRefCount},
     };
 
     use super::*;
@@ -39,10 +42,14 @@ pub mod details {
         const VTBL: Self::VitualTable;
     }
 
-    struct VT<T, V>(core::marker::PhantomData<(T, V)>);
+    struct VT<T, V, O>(core::marker::PhantomData<(T, V, O)>);
 
-    pub trait QuIn<O: impls::ObjectQueryInterface>: Interface {
-        fn QueryInterface(this: &O::Object, guid: &Guid, out: &mut *mut ()) -> HResult;
+    pub trait QuIn<T, O>: Interface {
+        unsafe fn QueryInterface(
+            this: *mut T,
+            guid: *const Guid,
+            out: *mut *mut core::ffi::c_void,
+        ) -> HResult;
     }
 
     #[repr(C)]
@@ -51,13 +58,16 @@ pub mod details {
         pub f_QueryInterface: unsafe extern "C" fn(
             this: *const IUnknown,
             guid: *const Guid,
-            out: *mut *mut (),
+            out: *mut *mut ::core::ffi::c_void,
         ) -> HResult,
         pub f_AddRef: unsafe extern "C" fn(this: *const IUnknown) -> u32,
         pub f_Release: unsafe extern "C" fn(this: *const IUnknown) -> u32,
     }
 
-    impl<T: impls::IUnknown + impls::ObjectQueryInterface> VT<T, IUnknown> {
+    impl<T: impls::IUnknown + impls::Object, O: ObjectBox<Object = T>> VT<T, IUnknown, O>
+    where
+        T::Interface: details::QuIn<T, O>,
+    {
         pub const VTBL: VitualTable_IUnknown = VitualTable_IUnknown {
             f_QueryInterface: Self::f_QueryInterface,
             f_AddRef: Self::f_AddRef,
@@ -67,23 +77,23 @@ pub mod details {
         unsafe extern "C" fn f_QueryInterface(
             this: *const IUnknown,
             guid: *const Guid,
-            out: *mut *mut (),
+            out: *mut *mut ::core::ffi::c_void,
         ) -> HResult {
-            unsafe {
-                (*(this as *const <T as impls::ObjectQueryInterface>::Object))
-                    .QueryInterface(&*guid, &mut *out)
-            }
+            unsafe { T::Interface::QueryInterface(this as _, guid, out) }
         }
         unsafe extern "C" fn f_AddRef(this: *const IUnknown) -> u32 {
-            unsafe { (*(this as *const <T as impls::ObjectQueryInterface>::Object)).AddRef() }
+            unsafe { O::AddRef(this as _) }
         }
         unsafe extern "C" fn f_Release(this: *const IUnknown) -> u32 {
-            unsafe { (*(this as *const <T as impls::ObjectQueryInterface>::Object)).Release() }
+            unsafe { O::Release(this as _) }
         }
     }
 
-    impl<T: impls::IUnknown + impls::ObjectQueryInterface> Vtbl<T> for IUnknown {
-        const VTBL: <IUnknown as Interface>::VitualTable = VT::<T, IUnknown>::VTBL;
+    impl<T: impls::IUnknown + impls::Object, O: ObjectBox<Object = T>> Vtbl<O> for IUnknown
+    where
+        T::Interface: details::QuIn<T, O>,
+    {
+        const VTBL: <IUnknown as Interface>::VitualTable = VT::<T, IUnknown, O>::VTBL;
     }
 
     #[repr(C)]
@@ -97,12 +107,12 @@ pub mod details {
         pub f_TryDowngrade: unsafe extern "C" fn(this: *const IWeak) -> bool,
     }
 
-    impl<T: impls::IWeak + impls::ObjectQueryInterface> VT<T, IWeak>
+    impl<T: impls::IWeak + impls::Object, O: ObjectBox<Object = T> + ObjectBoxWeak> VT<T, IWeak, O>
     where
-        <T as impls::ObjectQueryInterface>::Object: impls::WeakRefCount,
+        T::Interface: details::QuIn<T, O>,
     {
         pub const VTBL: VitualTable_IWeak = VitualTable_IWeak {
-            b: VT::<T, IUnknown>::VTBL,
+            b: <IUnknown as Vtbl<O>>::VTBL,
             f_AddRefWeak: Self::f_AddRefWeak,
             f_ReleaseWeak: Self::f_ReleaseWeak,
             f_TryUpgrade: Self::f_TryUpgrade,
@@ -110,53 +120,57 @@ pub mod details {
         };
 
         unsafe extern "C" fn f_AddRefWeak(this: *const IWeak) -> u32 {
-            unsafe { (*(this as *const <T as impls::ObjectQueryInterface>::Object)).AddRefWeak() }
+            unsafe { O::AddRefWeak(this as _) }
         }
         unsafe extern "C" fn f_ReleaseWeak(this: *const IWeak) -> u32 {
-            unsafe { (*(this as *const <T as impls::ObjectQueryInterface>::Object)).ReleaseWeak() }
+            unsafe { O::ReleaseWeak(this as _) }
         }
         unsafe extern "C" fn f_TryUpgrade(this: *const IWeak) -> bool {
-            unsafe { (*(this as *const <T as impls::ObjectQueryInterface>::Object)).TryUpgrade() }
+            unsafe { O::TryUpgrade(this as _) }
         }
         unsafe extern "C" fn f_TryDowngrade(this: *const IWeak) -> bool {
-            unsafe { (*(this as *const <T as impls::ObjectQueryInterface>::Object)).TryDowngrade() }
+            unsafe { O::TryDowngrade(this as _) }
         }
     }
 
-    impl<T: impls::IWeak + impls::ObjectQueryInterface> Vtbl<T> for IWeak
+    impl<T: impls::IWeak + impls::Object, O: ObjectBox<Object = T> + ObjectBoxWeak> Vtbl<O> for IWeak
     where
-        <T as impls::ObjectQueryInterface>::Object: impls::WeakRefCount,
+        T::Interface: details::QuIn<T, O>,
     {
-        const VTBL: <IWeak as Interface>::VitualTable = VT::<T, IWeak>::VTBL;
+        const VTBL: <IWeak as Interface>::VitualTable = VT::<T, IWeak, O>::VTBL;
     }
 
-    impl<T: impls::ObjectQueryInterface + impls::IUnknown> QuIn<T> for IUnknown {
-        fn QueryInterface(
-            this: &<T as impls::ObjectQueryInterface>::Object,
-            guid: &Guid,
-            out: &mut *mut (),
+    impl<T: impls::IUnknown + impls::Object, O: ObjectBox<Object = T>> QuIn<T, O> for IUnknown {
+        unsafe fn QueryInterface(
+            this: *mut T,
+            guid: *const Guid,
+            out: *mut *mut core::ffi::c_void,
         ) -> HResult {
-            if *guid == IUnknown::GUID {
-                *out = this as *const _ as *mut _;
-                unsafe { this.AddRef() };
-                return HResultE::Ok.into();
+            unsafe {
+                if *guid == IUnknown::GUID {
+                    *out = this as _;
+                    O::AddRef(this as _);
+                    return HResultE::Ok.into();
+                }
+                HResultE::NoInterface.into()
             }
-            HResultE::NoInterface.into()
         }
     }
 
-    impl<T: impls::ObjectQueryInterface + impls::IWeak> QuIn<T> for IWeak {
-        fn QueryInterface(
-            this: &<T as impls::ObjectQueryInterface>::Object,
-            guid: &Guid,
-            out: &mut *mut (),
+    impl<T: impls::IWeak + impls::Object, O: ObjectBox<Object = T>> QuIn<T, O> for IWeak {
+        unsafe fn QueryInterface(
+            this: *mut T,
+            guid: *const Guid,
+            out: *mut *mut core::ffi::c_void,
         ) -> HResult {
-            if *guid == IWeak::GUID {
-                *out = this as *const _ as *mut _;
-                unsafe { this.AddRef() };
-                return HResultE::Ok.into();
+            unsafe {
+                if *guid == IWeak::GUID {
+                    *out = this as _;
+                    O::AddRef(this as _);
+                    return HResultE::Ok.into();
+                }
+                <IUnknown as QuIn<T, O>>::QueryInterface(this, guid, out)
             }
-            <IUnknown as QuIn<T>>::QueryInterface(this, guid, out)
         }
     }
 }
@@ -185,6 +199,10 @@ impl Interface for IUnknown {
     type VitualTable = details::VitualTable_IUnknown;
 
     type Parent = IUnknown;
+
+    fn new(v_ptr: *const Self::VitualTable) -> Self {
+        Self::new(v_ptr)
+    }
 }
 
 impl IUnknown {
@@ -193,14 +211,8 @@ impl IUnknown {
         self.v_ptr as *const _
     }
 
-    pub fn QueryInterface(&self, guid: &Guid, out: &mut *mut ()) -> HResult {
-        unsafe {
-            ((*self.v_ptr()).f_QueryInterface)(
-                self as *const _,
-                guid as *const _,
-                out as *mut *mut (),
-            )
-        }
+    pub fn QueryInterface(&self, guid: &Guid, out: &mut *mut ::core::ffi::c_void) -> HResult {
+        unsafe { ((*self.v_ptr()).f_QueryInterface)(self as *const _, guid as *const _, out) }
     }
 
     pub fn AddRef(&self) -> u32 {
@@ -212,7 +224,7 @@ impl IUnknown {
     }
 
     pub fn QueryInterfaceTP<T: Interface>(&self, out: &mut *mut T) -> HResult {
-        let mut ptr: *mut () = core::ptr::null_mut();
+        let mut ptr: *mut ::core::ffi::c_void = core::ptr::null_mut();
         let r = self.QueryInterface(&T::GUID, &mut ptr);
         if r.is_failure() {
             return r;
@@ -222,7 +234,7 @@ impl IUnknown {
     }
 
     pub fn QueryInterfaceT<T: Interface + RefCount>(&self, out: &mut ComPtr<T>) -> HResult {
-        let mut ptr: *mut () = core::ptr::null_mut();
+        let mut ptr: *mut ::core::ffi::c_void = core::ptr::null_mut();
         let r = self.QueryInterface(&T::GUID, &mut ptr);
         if r.is_failure() {
             return r;
@@ -232,7 +244,7 @@ impl IUnknown {
     }
 
     pub fn TryCast<T: Interface + RefCount>(&self) -> Option<ComPtr<T>> {
-        let mut ptr: *mut () = core::ptr::null_mut();
+        let mut ptr: *mut ::core::ffi::c_void = core::ptr::null_mut();
         let r = self.QueryInterface(&T::GUID, &mut ptr);
         if r.is_failure() {
             return None;
@@ -242,7 +254,7 @@ impl IUnknown {
 }
 
 impl impls::QueryInterface for IUnknown {
-    fn QueryInterface(&self, guid: &Guid, out: &mut *mut ()) -> HResult {
+    fn QueryInterface(&self, guid: &Guid, out: &mut *mut ::core::ffi::c_void) -> HResult {
         self.QueryInterface(guid, out)
     }
 }
@@ -256,8 +268,6 @@ impl impls::RefCount for IUnknown {
         self.Release()
     }
 }
-
-impl impls::IUnknown for IUnknown {}
 
 #[repr(C)]
 pub struct IWeak {
@@ -282,6 +292,10 @@ impl Interface for IWeak {
     const GUID: Guid = Guid::from_str("9d01e165-12b5-4190-bb46-3d78413de9a5").unwrap();
     type VitualTable = details::VitualTable_IWeak;
     type Parent = IUnknown;
+
+    fn new(v_ptr: *const Self::VitualTable) -> Self {
+        Self::new(v_ptr)
+    }
 }
 
 impl Deref for IWeak {
@@ -322,7 +336,7 @@ impl IWeak {
 }
 
 impl impls::QueryInterface for IWeak {
-    fn QueryInterface(&self, guid: &Guid, out: &mut *mut ()) -> HResult {
+    fn QueryInterface(&self, guid: &Guid, out: &mut *mut ::core::ffi::c_void) -> HResult {
         (**self).QueryInterface(guid, out)
     }
 }
@@ -355,23 +369,43 @@ impl impls::WeakRefCount for IWeak {
     }
 }
 
-impl impls::IUnknown for IWeak {}
-
-impl impls::IWeak for IWeak {}
-
 pub mod impls {
     use super::*;
 
     pub unsafe trait Inherit<T>: AsRef<T> + AsMut<T> {}
 
-    pub trait ObjectQueryInterface {
-        type Object: QueryInterface + RefCount;
+    pub trait Object {
+        type Interface: Interface + Sized;
+    }
 
-        fn QueryInterface(this: &Self::Object, guid: &Guid, out: &mut *mut ()) -> HResult;
+    pub trait ObjectBoxNew: ObjectBox {
+        fn new(val: Self::Object) -> *mut <Self::Object as Object>::Interface;
+    }
+
+    pub trait ObjectBox {
+        type Object: Object;
+
+        unsafe fn AddRef(this: *mut <Self::Object as Object>::Interface) -> u32;
+        unsafe fn Release(this: *mut <Self::Object as Object>::Interface) -> u32;
+    }
+
+    pub trait ObjectBoxWeak: ObjectBox {
+        unsafe fn AddRefWeak(this: *mut <Self::Object as Object>::Interface) -> u32;
+        unsafe fn ReleaseWeak(this: *mut <Self::Object as Object>::Interface) -> u32;
+        unsafe fn TryUpgrade(this: *mut <Self::Object as Object>::Interface) -> bool;
+        unsafe fn TryDowngrade(this: *mut <Self::Object as Object>::Interface) -> bool;
+    }
+
+    pub trait ObjectRefCount {
+        fn _strong(&self) -> &core::sync::atomic::AtomicU32;
+    }
+
+    pub trait ObjectRefCountWeak: ObjectRefCount {
+        fn _weak(&self) -> &core::sync::atomic::AtomicU32;
     }
 
     pub trait QueryInterface {
-        fn QueryInterface(&self, guid: &Guid, out: &mut *mut ()) -> HResult;
+        fn QueryInterface(&self, guid: &Guid, out: &mut *mut ::core::ffi::c_void) -> HResult;
     }
 
     pub trait RefCount {
@@ -389,185 +423,6 @@ pub mod impls {
     pub trait IUnknown {}
 
     pub trait IWeak: IUnknown {}
-
-    #[macro_export]
-    macro_rules! impl_object {
-        {
-            #[weak] $S:ty : $I:ty => $i:ident;
-            $(#[ctor] impl {
-                $($vis:vis fn $name:ident($ii:ident: $it:ty $(, $ai:ident: $at:ty)* $(,)?) -> Self $b:block)*
-            })?
-        } => {
-            impl impls::ObjectQueryInterface for $S {
-                type Object = crate::object::WeakObject<Self>;
-
-                fn QueryInterface(this: &Self::Object, guid: &crate::Guid, out: &mut *mut ()) -> crate::HResult {
-                    <$I as details::QuIn<Self>>::QueryInterface(this, guid, out)
-                }
-            }
-
-            impl_object! {
-                ; $S : $I => $i;
-            }
-
-            $(
-                impl $S {
-                    $(
-                        concat_idents::concat_idents!(fn_name = _ctor_, $name {
-                            $vis fn $name($($ai: $at),*) -> crate::com_ptr::ComWeak<Self>
-                            {
-                                crate::object::WeakObject::new(
-                                    Self::fn_name(
-                                        $I::new(&<$I as details::Vtbl<Self>>::VTBL)
-                                        $(, $ai)*
-                                    )
-                                ).upcast()
-                            }
-
-                            fn fn_name($ii: $it $(, $ai: $at)*) -> Self $b
-                        });
-                    )*
-                }
-            )?
-        };
-        {
-            $S:ty : $I:ty => $i:ident;
-            $(#[ctor] impl {
-                $($vis:vis fn $name:ident($ii:ident: $it:ty $(, $ai:ident: $at:ty)* $(,)?) -> Self $b:block)*
-            })?
-        } => {
-            impl impls::ObjectQueryInterface for $S {
-                type Object = crate::object::ComObject<Self>;
-
-                fn QueryInterface(this: &Self::Object, guid: &crate::Guid, out: &mut *mut ()) -> crate::HResult {
-                    details::QI::<Self, $I>::QueryInterface(this, guid, out)
-                }
-            }
-
-            impl_object! {
-                ; $S : $I => $i;
-            }
-
-            $(
-                impl $S {
-                    $(
-                        concat_idents::concat_idents!(fn_name = _ctor_, $name {
-                            $vis fn $name($($ai: $at),*) -> crate::com_ptr::ComPtr<Self>
-                            {
-                                crate::object::ComObject::new(
-                                    Self::fn_name(
-                                        $I::new(&details::VT::<Self, $I>::VTBL)
-                                        $(, $ai)*
-                                    )
-                                ).upcast()
-                            }
-
-                            fn fn_name($ii: $it $(, $ai: $at)*) -> Self $b
-                        });
-                    )*
-                }
-            )?
-        };
-        {
-            ; $S:ty : $I:ty => $i:ident;
-        } => {
-            concat_idents::concat_idents!(macro_name = impl_, $I {
-                macro_name! { $S }
-            });
-
-            impl Deref for $S {
-                type Target = $I;
-
-                fn deref(&self) -> &Self::Target {
-                    &self.$i
-                }
-            }
-
-            impl DerefMut for $S {
-                fn deref_mut(&mut self) -> &mut Self::Target {
-                    &mut self.$i
-                }
-            }
-        };
-    }
-
-    #[macro_export]
-    macro_rules! impl_IUnknown {
-        { $S:ty } => {
-            impl impls::QueryInterface for $S {
-                fn QueryInterface(&self, guid: &crate::Guid, out: &mut *mut ()) -> crate::HResult {
-                    (**self).QueryInterface(guid, out)
-                }
-            }
-
-            impl impls::RefCount for $S {
-                fn AddRef(&self) -> u32 {
-                    (**self).AddRef()
-                }
-
-                fn Release(&self) -> u32 {
-                    (**self).Release()
-                }
-            }
-
-            impl impls::IUnknown for $S {}
-
-            impl AsRef<crate::IUnknown> for $S {
-                fn as_ref(&self) -> &crate::IUnknown {
-                    self
-                }
-            }
-
-            impl AsMut<crate::IUnknown> for $S {
-                fn as_mut(&mut self) -> &mut crate::IUnknown {
-                    self
-                }
-            }
-
-            unsafe impl impls::Inherit<crate::IUnknown> for $S {}
-        };
-    }
-
-    #[macro_export]
-    macro_rules! impl_IWeak {
-        { $S:ty } => {
-            crate:: impl_IUnknown! { $S }
-
-            impl impls::WeakRefCount for $S {
-                fn AddRefWeak(&self) -> u32 {
-                    (**self).AddRefWeak()
-                }
-
-                fn ReleaseWeak(&self) -> u32 {
-                    (**self).ReleaseWeak()
-                }
-
-                fn TryUpgrade(&self) -> bool {
-                    (**self).TryUpgrade()
-                }
-
-                fn TryDowngrade(&self) -> bool {
-                    (**self).TryDowngrade()
-                }
-            }
-
-            impl impls::IWeak for $S {}
-
-            impl AsRef<crate::IWeak> for $S {
-                fn as_ref(&self) -> &crate::IWeak {
-                    self
-                }
-            }
-
-            impl AsMut<crate::IWeak> for $S {
-                fn as_mut(&mut self) -> &mut crate::IWeak {
-                    self
-                }
-            }
-
-            unsafe impl impls::Inherit<crate::IWeak> for $S {}
-        };
-    }
 }
 
 #[cfg(test)]
@@ -575,28 +430,18 @@ mod test {
     extern crate std;
     use crate::{
         com_ptr::{ComWeak, Upcast},
-        object::{ComObject, WeakObject},
+        impls::ObjectBox,
+        object::Object,
         *,
     };
 
-    #[repr(C)]
+    #[object(IUnknown)]
     #[derive(Debug)]
-    pub struct Foo {
-        pub i: IWeak,
-    }
-
-    impl_object! {
-        #[weak] Foo : IWeak => i;
-        #[ctor] impl {
-            pub fn new(i: IWeak) -> Self {
-                Self { i }
-            }
-        }
-    }
+    pub struct Foo {}
 
     #[test]
     fn test1() {
-        let a: ComWeak<Foo> = Foo::new();
+        let a = Foo {}.make_object();
         std::println!("{:?}", a);
     }
 }

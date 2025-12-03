@@ -3,8 +3,8 @@
 use proc_macro::TokenStream;
 use quote::{format_ident, quote};
 use syn::{
-    Attribute, Ident, LitStr, Token, TraitItemFn, Visibility, braced, parse::Parse,
-    parse_macro_input, token::Brace,
+    Attribute, FieldsNamed, Generics, Ident, ItemStruct, LitStr, Token, TraitItemFn, Type,
+    Visibility, braced, parse::Parse, parse_macro_input, token::Brace,
 };
 
 struct InterfaceAttr {
@@ -85,7 +85,7 @@ pub fn interface(attr: TokenStream, item: TokenStream) -> TokenStream {
         let ret = &item.sig.output;
         quote! {
             #(#attrs)*
-            fn #ident(#inputs) #ret {
+            pub fn #ident(#inputs) #ret {
                 unsafe { ((*self.v_ptr()).#f_name)(self as _, #(#args),*) }
             }
         }
@@ -144,7 +144,62 @@ pub fn interface(attr: TokenStream, item: TokenStream) -> TokenStream {
     .into()
 }
 
+struct ObjectAttr {
+    parent: Type,
+}
+
+impl Parse for ObjectAttr {
+    fn parse(input: syn::parse::ParseStream) -> syn::Result<Self> {
+        let parent: Type = input.parse()?;
+        Ok(Self { parent })
+    }
+}
+
+struct ItemObject {
+    pub attrs: Vec<Attribute>,
+    pub vis: Visibility,
+    pub struct_token: Token![struct],
+    pub ident: Ident,
+    pub generics: Generics,
+    pub fields: FieldsNamed,
+    pub semi_token: Option<Token![;]>,
+}
+
+impl Parse for ItemObject {
+    fn parse(input: syn::parse::ParseStream) -> syn::Result<Self> {
+        let attrs: Vec<Attribute> = input.call(Attribute::parse_outer)?;
+        let vis: Visibility = input.parse()?;
+        let struct_token: Token![struct] = input.parse()?;
+        let ident: Ident = input.parse::<Ident>()?;
+        let generics: Generics = input.parse()?;
+        let fields: FieldsNamed = input.parse()?;
+        let semi_token: Option<Token![;]> = input.parse()?;
+        Ok(Self {
+            attrs,
+            vis,
+            struct_token,
+            ident,
+            generics,
+            fields,
+            semi_token,
+        })
+    }
+}
+
 #[proc_macro_attribute]
-pub fn object(_attr: TokenStream, item: TokenStream) -> TokenStream {
-    item
+pub fn object(attr: TokenStream, item: TokenStream) -> TokenStream {
+    let attr = parse_macro_input!(attr as ObjectAttr);
+    let item = parse_macro_input!(item as ItemStruct);
+    let parent = &attr.parent;
+    let ident = &item.ident;
+    quote! {
+        #item
+
+        impl impls::Object for #ident {
+            type Interface = #parent;
+        }
+
+        impl impls::IUnknown for #ident {}
+    }
+    .into()
 }

@@ -1,260 +1,254 @@
-use alloc::boxed::Box;
+use alloc::{boxed::Box, sync::Arc};
 use core::{
     cell::UnsafeCell,
     mem::ManuallyDrop,
-    ptr::NonNull,
+    ptr::{NonNull, drop_in_place},
     sync::atomic::{AtomicU32, Ordering},
 };
 
 use crate::{
     com_ptr::*,
-    impls::{self},
+    impls::{self, ObjectBox, QueryInterface, WeakRefCount},
     *,
 };
 
-#[repr(C)]
-#[derive(Debug)]
-pub struct ComObject<T> {
-    pub(crate) value: T,
-    pub(crate) strong: AtomicU32,
+pub trait MakeObject {
+    type Output;
+
+    fn make_object(self) -> Self::Output;
 }
 
-impl<T: impls::ObjectQueryInterface + impls::IUnknown> ComObject<T> {
-    pub fn new(value: T) -> ComPtr<Self> {
-        unsafe { ComPtr::new(Self::alloc(value)) }
-    }
+pub trait MakeObjectWeak {
+    type Output;
+
+    fn make_object_weak(self) -> Self::Output;
 }
 
-impl<T> ComObject<T> {
-    pub unsafe fn alloc(value: T) -> NonNull<Self> {
-        unsafe {
-            NonNull::new_unchecked(Box::leak(Box::new(Self {
-                value: value,
-                strong: AtomicU32::new(1),
-            })))
-        }
-    }
-
-    pub unsafe fn AddRef(&self) -> u32 {
-        self.strong.fetch_add(1, Ordering::Relaxed)
-    }
-
-    pub unsafe fn Release(&self) -> u32 {
-        let r = self.strong.fetch_sub(1, Ordering::Release);
-        if r != 1 {
-            return r;
-        }
-        unsafe { self.do_release() };
-        return r;
-    }
-
-    unsafe fn do_release(&self) {
-        let ptr = self as *const _ as *mut Self;
-        drop(unsafe { Box::from_raw(ptr) });
-    }
-}
-
-impl<T: impls::ObjectQueryInterface<Object = Self> + impls::IUnknown> impls::QueryInterface
-    for ComObject<T>
+impl<T: impls::Object> MakeObject for T
+where
+    T::Interface: RefCount,
+    Object<T>: impls::ObjectBox<Object = T> + impls::ObjectBoxNew,
 {
-    fn QueryInterface(&self, guid: &Guid, out: &mut *mut ()) -> HResult {
-        T::QueryInterface(self, guid, out)
+    type Output = ComPtr<T::Interface>;
+
+    fn make_object(self) -> Self::Output {
+        unsafe {
+            ComPtr::new(NonNull::new_unchecked(
+                <Object<T> as impls::ObjectBoxNew>::new(self),
+            ))
+        }
     }
 }
 
-impl<T: impls::ObjectQueryInterface + impls::IUnknown> impls::RefCount for ComObject<T> {
-    fn AddRef(&self) -> u32 {
-        unsafe { self.AddRef() }
-    }
+impl<T: impls::Object> MakeObjectWeak for T
+where
+    T::Interface: RefCount + WeakRefCount,
+    WeakObject<T>: impls::ObjectBox<Object = T> + impls::ObjectBoxNew,
+{
+    type Output = ComPtr<T::Interface>;
 
-    fn Release(&self) -> u32 {
-        unsafe { self.Release() }
-    }
-}
-
-impl<T> Deref for ComObject<T> {
-    type Target = T;
-
-    fn deref(&self) -> &Self::Target {
-        &self.value
+    fn make_object_weak(self) -> Self::Output {
+        unsafe {
+            ComPtr::new(NonNull::new_unchecked(
+                <WeakObject<T> as impls::ObjectBoxNew>::new(self),
+            ))
+        }
     }
 }
-
-impl<T> DerefMut for ComObject<T> {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        &mut self.value
-    }
-}
-
-impl<T> AsRef<T> for ComObject<T> {
-    fn as_ref(&self) -> &T {
-        &**self
-    }
-}
-
-impl<T> AsMut<T> for ComObject<T> {
-    fn as_mut(&mut self) -> &mut T {
-        &mut **self
-    }
-}
-
-unsafe impl<T> impls::Inherit<T> for ComObject<T> {}
 
 #[repr(C)]
 #[derive(Debug)]
-pub struct WeakObject<T> {
-    pub(crate) value: UnsafeCell<ManuallyDrop<ComObject<T>>>,
-    pub(crate) weak: AtomicU32,
+pub struct Object<T: impls::Object> {
+    base: T::Interface,
+    strong: AtomicU32,
+    val: ManuallyDrop<T>,
 }
 
-impl<T: impls::ObjectQueryInterface + impls::IWeak> WeakObject<T> {
-    pub fn new(value: T) -> ComWeak<Self> {
-        unsafe { ComWeak::new(Self::alloc(value)) }
-    }
-}
-
-impl<T> WeakObject<T> {
-    pub unsafe fn alloc(value: T) -> NonNull<Self> {
+impl<T: impls::Object> Object<T> {
+    unsafe fn Drop(this: *mut Self) {
         unsafe {
-            NonNull::new_unchecked(Box::leak(Box::new(Self {
-                value: UnsafeCell::new(ManuallyDrop::new(ComObject {
-                    value,
-                    strong: AtomicU32::new(1),
-                })),
-                weak: AtomicU32::new(1),
-            })))
+            ManuallyDrop::drop(&mut (*this).val);
+            drop(Box::from_raw(this));
+        }
+    }
+}
+
+impl<T: impls::Object> Object<T>
+where
+    T::Interface: details::Vtbl<Self>,
+{
+    pub fn new(val: T) -> *mut T::Interface {
+        let b = Box::leak(Box::new(Self {
+            base: T::Interface::new(&<T::Interface as details::Vtbl<Self>>::VTBL),
+            strong: AtomicU32::new(1),
+            val: ManuallyDrop::new(val),
+        }));
+        b as *mut _ as _
+    }
+}
+
+impl<T: impls::Object> impls::ObjectBoxNew for Object<T>
+where
+    T::Interface: details::Vtbl<Self>,
+{
+    fn new(val: T) -> *mut T::Interface {
+        Self::new(val)
+    }
+}
+
+impl<T: impls::Object> impls::ObjectBox for Object<T> {
+    type Object = T;
+
+    unsafe fn AddRef(this: *mut T::Interface) -> u32 {
+        unsafe {
+            let this = this as *mut Self;
+            (*this).strong.fetch_add(1, Ordering::Relaxed)
         }
     }
 
-    pub unsafe fn AddRef(&self) -> u32 {
-        self.strong.fetch_add(1, Ordering::Relaxed)
-    }
-
-    pub unsafe fn Release(&self) -> u32 {
-        let r = self.strong.fetch_sub(1, Ordering::Release);
-        if r != 1 {
-            return r;
-        }
-        unsafe { self.drop_slow() };
-        return r;
-    }
-
-    pub unsafe fn AddRefWeak(&self) -> u32 {
-        self.weak.fetch_add(1, Ordering::Relaxed)
-    }
-
-    pub unsafe fn ReleaseWeak(&self) -> u32 {
-        let r = self.weak.fetch_sub(1, Ordering::Release);
-        if r != 1 {
-            return r;
-        }
-        unsafe { self.do_delete() };
-        return r;
-    }
-
-    pub unsafe fn TryUpgrade(&self) -> bool {
-        let cur = self.weak.load(Ordering::Relaxed);
-        loop {
-            if cur == 0 {
-                return false;
+    unsafe fn Release(this: *mut T::Interface) -> u32 {
+        unsafe {
+            let this = this as *mut Self;
+            let r = (*this).strong.fetch_sub(1, Ordering::Release);
+            if r == 1 {
+                Self::Drop(this);
             }
-            if self
-                .weak
-                .compare_exchange_weak(cur, cur + 1, Ordering::Acquire, Ordering::Relaxed)
-                .is_ok()
-            {
-                return true;
-            }
+            r
+        }
+    }
+}
+
+#[repr(C)]
+#[derive(Debug)]
+pub struct WeakObject<T: impls::Object> {
+    base: T::Interface,
+    strong: AtomicU32,
+    weak: AtomicU32,
+    val: ManuallyDrop<T>,
+}
+
+impl<T: impls::Object> WeakObject<T> {
+    #[inline(never)]
+    unsafe fn DropSlow(this: *mut Self) {
+        unsafe {
+            ManuallyDrop::drop(&mut (*this).val);
+            Self::ReleaseWeak_(this);
         }
     }
 
-    pub unsafe fn TryDowngrade(&self) -> bool {
-        let cur = self.strong.load(Ordering::Relaxed);
-        loop {
-            if cur == 0 {
-                return false;
+    pub unsafe fn ReleaseWeak_(this: *mut Self) -> u32 {
+        unsafe {
+            let r = (*this).weak.fetch_sub(1, Ordering::Release);
+            if r == 1 {
+                Self::Drop(this);
             }
-            if self
+            r
+        }
+    }
+
+    unsafe fn Drop(this: *mut Self) {
+        unsafe {
+            drop(Box::from_raw(this));
+        }
+    }
+}
+
+impl<T: impls::Object> WeakObject<T>
+where
+    T::Interface: details::Vtbl<Self>,
+{
+    pub fn new(val: T) -> *mut T::Interface {
+        let b = Box::leak(Box::new(Self {
+            base: T::Interface::new(&<T::Interface as details::Vtbl<Self>>::VTBL),
+            strong: AtomicU32::new(1),
+            weak: AtomicU32::new(1),
+            val: ManuallyDrop::new(val),
+        }));
+        b as *mut _ as _
+    }
+}
+
+impl<T: impls::Object> impls::ObjectBoxNew for WeakObject<T>
+where
+    T::Interface: details::Vtbl<Self>,
+{
+    fn new(val: T) -> *mut T::Interface {
+        Self::new(val)
+    }
+}
+
+impl<T: impls::Object> impls::ObjectBox for WeakObject<T> {
+    type Object = T;
+
+    unsafe fn AddRef(this: *mut T::Interface) -> u32 {
+        unsafe {
+            let this = this as *mut Self;
+            (*this).strong.fetch_add(1, Ordering::Relaxed)
+        }
+    }
+
+    unsafe fn Release(this: *mut T::Interface) -> u32 {
+        unsafe {
+            let this = this as *mut Self;
+            let r = (*this).strong.fetch_sub(1, Ordering::Release);
+            if r == 1 {
+                Self::DropSlow(this);
+            }
+            r
+        }
+    }
+}
+
+impl<T: impls::Object> impls::ObjectBoxWeak for WeakObject<T>
+where
+    T::Interface: details::QuIn<T, Self>,
+{
+    unsafe fn AddRefWeak(this: *mut T::Interface) -> u32 {
+        unsafe {
+            let this = this as *mut Self;
+            (*this).weak.fetch_add(1, Ordering::Relaxed)
+        }
+    }
+
+    unsafe fn ReleaseWeak(this: *mut T::Interface) -> u32 {
+        unsafe { Self::ReleaseWeak_(this as _) }
+    }
+
+    unsafe fn TryUpgrade(this: *mut T::Interface) -> bool {
+        unsafe {
+            let this = this as *mut Self;
+
+            #[inline]
+            fn checked_increment(n: u32) -> Option<u32> {
+                if n == 0 {
+                    return None;
+                }
+                Some(n + 1)
+            }
+
+            (*this)
                 .strong
-                .compare_exchange_weak(cur, cur + 1, Ordering::Acquire, Ordering::Relaxed)
+                .fetch_update(Ordering::Acquire, Ordering::Relaxed, checked_increment)
                 .is_ok()
-            {
-                return true;
-            }
         }
     }
 
-    unsafe fn drop_slow(&self) {
-        unsafe { ManuallyDrop::drop(&mut *self.value.get()) };
-        unsafe { self.ReleaseWeak() };
-    }
+    unsafe fn TryDowngrade(this: *mut T::Interface) -> bool {
+        unsafe {
+            let this = this as *mut Self;
 
-    unsafe fn do_delete(&self) {
-        let ptr = self as *const _ as *mut Self;
-        drop(unsafe { Box::from_raw(ptr) });
-    }
-}
+            #[inline]
+            fn checked_increment(n: u32) -> Option<u32> {
+                if n == 0 {
+                    return None;
+                }
+                Some(n + 1)
+            }
 
-impl<T: impls::ObjectQueryInterface<Object = Self> + impls::IWeak> impls::QueryInterface
-    for WeakObject<T>
-{
-    fn QueryInterface(&self, guid: &Guid, out: &mut *mut ()) -> HResult {
-        T::QueryInterface(self, guid, out)
-    }
-}
-
-impl<T: impls::ObjectQueryInterface + impls::IWeak> impls::RefCount for WeakObject<T> {
-    fn AddRef(&self) -> u32 {
-        unsafe { self.AddRef() }
-    }
-
-    fn Release(&self) -> u32 {
-        unsafe { self.Release() }
+            (*this)
+                .weak
+                .fetch_update(Ordering::Acquire, Ordering::Relaxed, checked_increment)
+                .is_ok()
+        }
     }
 }
-
-impl<T: impls::ObjectQueryInterface + impls::IWeak> impls::WeakRefCount for WeakObject<T> {
-    fn AddRefWeak(&self) -> u32 {
-        unsafe { self.AddRefWeak() }
-    }
-
-    fn ReleaseWeak(&self) -> u32 {
-        unsafe { self.ReleaseWeak() }
-    }
-
-    fn TryUpgrade(&self) -> bool {
-        unsafe { self.TryUpgrade() }
-    }
-
-    fn TryDowngrade(&self) -> bool {
-        unsafe { self.TryDowngrade() }
-    }
-}
-
-impl<T> Deref for WeakObject<T> {
-    type Target = ComObject<T>;
-
-    fn deref(&self) -> &Self::Target {
-        unsafe { &*self.value.get() }
-    }
-}
-
-impl<T> DerefMut for WeakObject<T> {
-    fn deref_mut(&mut self) -> &mut Self::Target {
-        self.value.get_mut()
-    }
-}
-
-impl<T> AsRef<T> for WeakObject<T> {
-    fn as_ref(&self) -> &T {
-        &**self
-    }
-}
-
-impl<T> AsMut<T> for WeakObject<T> {
-    fn as_mut(&mut self) -> &mut T {
-        &mut **self
-    }
-}
-
-unsafe impl<T> impls::Inherit<T> for WeakObject<T> {}

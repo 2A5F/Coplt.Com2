@@ -1,4 +1,4 @@
-use crate::{IUnknown, IWeak, impls, object::WeakObject};
+use crate::{IUnknown, IWeak, impls};
 use core::{
     fmt::{Debug, Display},
     mem::ManuallyDrop,

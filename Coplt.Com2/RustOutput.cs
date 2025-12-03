@@ -26,46 +26,44 @@ public record RustOutput : AOutput
         sb.AppendLine("#![allow(non_camel_case_types)]");
 
         sb.AppendLine();
-        sb.AppendLine("use cocom::{Guid, Interface, IUnknown, IWeak};");
+        sb.AppendLine("use cocom::{Guid, HResult, Interface, IUnknown, IWeak};");
 
         GenInterfaces(db, sb);
         GenTypes(db, sb);
 
-        sb.AppendLine();
-        sb.AppendLine("pub mod details {");
-        sb.AppendLine("    use cocom::details::*;");
-        sb.AppendLine("    use super::*;");
         GenInterfacesDetails(db, sb);
-        sb.AppendLine("}");
+        GenInterfacesImpls(db, sb);
 
         await File.WriteAllTextAsync(Path, sb.ToString());
     }
 
-    private static string NonRootToRustName(TypeSymbol symbol) => ToRustName(symbol, false);
-    private static string ToRustName(TypeSymbol symbol, bool is_root = true)
+    private static string ToRustName(TypeSymbol symbol, bool is_root = true, bool super = false)
     {
-        switch (symbol.Kind)
+        var su = super ? "super::" : "";
+       switch (symbol.Kind)
         {
             case TypeKind.Interface:
-                return symbol.Name;
+                return $"{su}{symbol.Name}";
             case TypeKind.Generic:
                 return $"T{symbol.Index}";
             case TypeKind.Struct:
                 if (!symbol.GenericsOrParams.IsDefaultOrEmpty)
-                    return $"{symbol.Name}<{string.Join(", ", symbol.GenericsOrParams.Select(NonRootToRustName))}>";
-                return $"{symbol.Name}";
+                    return $"{su}{symbol.Name}<{string.Join(", ", symbol.GenericsOrParams.Select(a => ToRustName(a, false, super)))}>";
+                return $"{su}{symbol.Name}";
             case TypeKind.Enum:
-                return $"{symbol.Name}";
+                return $"{su}{symbol.Name}";
             case TypeKind.Ptr:
             case TypeKind.Ref:
             {
                 var c = (symbol.Flags & TypeFlags.Const) != 0 ? "const " : "mut ";
-                return $"*{c}{NonRootToRustName(symbol.TargetOrReturn!)}";
+                return $"*{c}{ToRustName(symbol.TargetOrReturn!, false, super)}";
             }
             case TypeKind.Fn:
             {
-                var arg = symbol.GenericsOrParams.IsDefaultOrEmpty ? "" : $"{string.Join(", ", symbol.GenericsOrParams.Select(NonRootToRustName))}";
-                return $"unsafe extern \"C\" fn({arg}) -> {NonRootToRustName(symbol.TargetOrReturn!)}";
+                var arg = symbol.GenericsOrParams.IsDefaultOrEmpty
+                    ? ""
+                    : $"{string.Join(", ", symbol.GenericsOrParams.Select(a => ToRustName(a, false, super)))}";
+                return $"unsafe extern \"C\" fn({arg}) -> {ToRustName(symbol.TargetOrReturn!, false, super)}";
             }
             case TypeKind.Void:
                 return is_root ? "()" : "core::ffi::c_void";
@@ -104,9 +102,9 @@ public record RustOutput : AOutput
             case TypeKind.Char16:
                 return "u16";
             case TypeKind.Guid:
-                return "::cocom::Guid";
+                return "Guid";
             case TypeKind.HResult:
-                return "::cocom::HResult";
+                return "HResult";
             case TypeKind.NSpan:
                 break;
             case TypeKind.NRoSpan:
@@ -204,8 +202,48 @@ public record RustOutput : AOutput
         #endregion
     }
 
+    internal void GenInterfaces(SymbolDb db, StringBuilder root_sb)
+    {
+        #region Interfaces
+
+        var interfaces = db.Interfaces
+            .AsParallel()
+            .OrderBy(a => a.Key, StringComparer.Ordinal)
+            .Select(a => a.Value)
+            .Select(a =>
+            {
+                var sb = new StringBuilder();
+                var name = a.Name;
+                var parent = a.Parent?.Name ?? "IUnknown";
+                sb.AppendLine();
+                sb.AppendLine($"#[cocom::interface(\"{a.Guid:D}\")]");
+                sb.AppendLine($"pub trait {name} : {parent} {{");
+                foreach (var method in a.Methods)
+                {
+                    sb.Append($"    fn {method.Name}(&{((method.Flags & MethodFlags.Const) != 0 ? "" : "mut ")}self");
+                    foreach (var param in method.Params)
+                    {
+                        sb.Append(", ");
+                        var o = (param.Flags & ParamFlags.Out) != 0 ? "/* out */ " : "";
+                        sb.Append($"{o}{param.Name}: {ToRustName(param.Type)}");
+                    }
+                    sb.AppendLine($") -> {ToRustName(method.ReturnType)};");
+                }
+                sb.AppendLine($"}}");
+                return sb.ToString();
+            }).ToList();
+        root_sb.AppendJoin("", interfaces);
+
+        #endregion
+    }
+
     internal void GenInterfacesDetails(SymbolDb db, StringBuilder root_sb)
     {
+        root_sb.AppendLine();
+        root_sb.AppendLine("pub mod details {");
+        root_sb.AppendLine("    pub use cocom::details::*;");
+        root_sb.AppendLine("    use super::*;");
+
         #region Interfaces
 
         var interfaces = db.Interfaces
@@ -241,10 +279,17 @@ public record RustOutput : AOutput
         root_sb.AppendJoin("", interfaces);
 
         #endregion
+
+        root_sb.AppendLine("}");
     }
 
-    internal void GenInterfaces(SymbolDb db, StringBuilder root_sb)
+    internal void GenInterfacesImpls(SymbolDb db, StringBuilder root_sb)
     {
+        root_sb.AppendLine();
+        root_sb.AppendLine("pub mod impls {");
+        root_sb.AppendLine("    pub use cocom::impls::*;");
+        root_sb.AppendLine("    use cocom::{Guid, HResult};");
+
         #region Interfaces
 
         var interfaces = db.Interfaces
@@ -257,24 +302,26 @@ public record RustOutput : AOutput
                 var name = a.Name;
                 var parent = a.Parent?.Name ?? "IUnknown";
                 sb.AppendLine();
-                sb.AppendLine($"#[cocom::interface(\"{a.Guid:D}\")]");
-                sb.AppendLine($"pub trait {name} : {parent} {{");
+                sb.AppendLine($"    pub trait {name} : {parent} {{");
                 foreach (var method in a.Methods)
                 {
-                    sb.Append($"    fn {method.Name}(&{((method.Flags & MethodFlags.Const) != 0 ? "" : "mut ")}self");
+                    sb.Append(
+                        $"        fn {method.Name}(&{((method.Flags & MethodFlags.Const) != 0 ? "" : "mut")} self");
                     foreach (var param in method.Params)
                     {
                         sb.Append(", ");
                         var o = (param.Flags & ParamFlags.Out) != 0 ? "/* out */ " : "";
-                        sb.Append($"{o}{param.Name}: {ToRustName(param.Type)}");
+                        sb.Append($"{o}{param.Name}: {ToRustName(param.Type, super: true)}");
                     }
-                    sb.AppendLine($") -> {ToRustName(method.ReturnType)};");
+                    sb.AppendLine($") -> {ToRustName(method.ReturnType, super: true)};");
                 }
-                sb.AppendLine($"}}");
+                sb.AppendLine($"    }}");
                 return sb.ToString();
             }).ToList();
         root_sb.AppendJoin("", interfaces);
 
         #endregion
+
+        root_sb.AppendLine("}");
     }
 }
