@@ -3,8 +3,9 @@
 use proc_macro::TokenStream;
 use quote::{format_ident, quote};
 use syn::{
-    Attribute, FieldsNamed, Generics, Ident, ItemStruct, LitStr, Token, TraitItemFn, Type,
-    Visibility, braced, parse::Parse, parse_macro_input, token::Brace,
+    Attribute, FieldsNamed, Generics, Ident, ItemStruct, ItemTrait, LitStr, Token, TraitItemFn,
+    Type, TypeParamBound, Visibility, braced, parse::Parse, parse_macro_input,
+    punctuated::Punctuated, token::Brace,
 };
 
 struct InterfaceAttr {
@@ -27,7 +28,7 @@ struct ItemInterface {
     pub trait_token: Token![trait],
     pub ident: Ident,
     pub colon_token: Token![:],
-    pub parent: Ident,
+    pub parents: Punctuated<Ident, Token![+]>,
     pub brace_token: Brace,
     pub items: Vec<TraitItemFn>,
 }
@@ -39,7 +40,17 @@ impl Parse for ItemInterface {
         let trait_token: Token![trait] = input.parse()?;
         let ident: Ident = input.parse()?;
         let colon_token: Token![:] = input.parse()?;
-        let parent: Ident = input.parse()?;
+        let mut parents: Punctuated<Ident, Token![+]> = Punctuated::new();
+        loop {
+            parents.push_value(input.parse()?);
+            if input.peek(Brace) {
+                break;
+            }
+            parents.push_punct(input.parse()?);
+            if input.peek(Brace) {
+                break;
+            }
+        }
         let content;
         let brace_token = braced!(content in input);
         let mut items: Vec<TraitItemFn> = Vec::new();
@@ -52,7 +63,7 @@ impl Parse for ItemInterface {
             trait_token,
             ident,
             colon_token,
-            parent,
+            parents,
             brace_token,
             items,
         })
@@ -66,7 +77,8 @@ pub fn interface(attr: TokenStream, item: TokenStream) -> TokenStream {
     let attrs = &item.attrs;
     let vis = &item.vis;
     let name = &item.ident;
-    let parent = &item.parent;
+    let parent = &item.parents.first();
+    let has_weak = item.parents.iter().any(|a| a.to_string() == "IWeak");
     let guid = attr.guid_lit.value();
     let name_str = name.to_string();
     let vtbl_name = format_ident!("VitualTable_{}", name_str);
@@ -91,6 +103,29 @@ pub fn interface(attr: TokenStream, item: TokenStream) -> TokenStream {
             }
         }
     });
+    let weak = if !has_weak {
+        quote! {}
+    } else {
+        quote! {
+            impl impls::WeakRefCount for #name {
+                fn AddRefWeak(this: *const Self) -> u32 {
+                    IWeak::AddRefWeak(unsafe { &*this })
+                }
+
+                fn ReleaseWeak(this: *const Self) -> u32 {
+                    IWeak::ReleaseWeak(unsafe { &*this })
+                }
+
+                fn TryUpgrade(this: *const Self) -> bool {
+                    IWeak::TryUpgrade(unsafe { &*this })
+                }
+
+                fn TryDowngrade(this: *const Self) -> bool {
+                    IWeak::TryDowngrade(unsafe { &*this })
+                }
+            }
+        }
+    };
     quote! {
         #(#attrs)*
         #[repr(C)]
@@ -141,6 +176,18 @@ pub fn interface(attr: TokenStream, item: TokenStream) -> TokenStream {
                 &mut self.base
             }
         }
+
+        impl impls::RefCount for #name {
+            fn AddRef(this: *const Self) -> u32 {
+                IUnknown::AddRef(unsafe { &*this })
+            }
+
+            fn Release(this: *const Self) -> u32 {
+                IUnknown::Release(unsafe { &*this })
+            }
+        }
+
+        #weak
 
         impl #name {
             #(#methods)*

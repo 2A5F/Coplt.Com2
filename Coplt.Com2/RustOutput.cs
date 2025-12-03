@@ -40,7 +40,7 @@ public record RustOutput : AOutput
     private static string ToRustName(TypeSymbol symbol, bool is_root = true, bool super = false)
     {
         var su = super ? "super::" : "";
-       switch (symbol.Kind)
+        switch (symbol.Kind)
         {
             case TypeKind.Interface:
                 return $"{su}{symbol.Name}";
@@ -202,6 +202,12 @@ public record RustOutput : AOutput
         #endregion
     }
 
+    internal string BuildParentList(InterfaceDeclareSymbol a)
+    {
+        if (a.Parent == null || a.Parent.Name == "IUnknown") return "IUnknown";
+        return $"{a.Parent.Name} + {BuildParentList(a.Parent)}";
+    }
+
     internal void GenInterfaces(SymbolDb db, StringBuilder root_sb)
     {
         #region Interfaces
@@ -214,7 +220,7 @@ public record RustOutput : AOutput
             {
                 var sb = new StringBuilder();
                 var name = a.Name;
-                var parent = a.Parent?.Name ?? "IUnknown";
+                var parent = BuildParentList(a);
                 sb.AppendLine();
                 sb.AppendLine($"#[cocom::interface(\"{a.Guid:D}\")]");
                 sb.AppendLine($"pub trait {name} : {parent} {{");
