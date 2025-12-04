@@ -283,7 +283,7 @@ namespace Coplt
         // downgrade
         template <class = void> requires WeakReferenceCounting<T>
         explicit Weak(T* ptr, downgrade_t)
-            : m_ptr(ptr && ptr->TryDowngrade() ? ptr : nullptr)
+            : m_ptr(ptr ? ptr->AddRefWeak(), ptr : nullptr)
         {
         }
 

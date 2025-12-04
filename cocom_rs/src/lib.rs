@@ -110,7 +110,6 @@ pub mod details {
         pub f_AddRefWeak: unsafe extern "C" fn(this: *const IWeak) -> u32,
         pub f_ReleaseWeak: unsafe extern "C" fn(this: *const IWeak) -> u32,
         pub f_TryUpgrade: unsafe extern "C" fn(this: *const IWeak) -> bool,
-        pub f_TryDowngrade: unsafe extern "C" fn(this: *const IWeak) -> bool,
     }
 
     impl<T: impls::IWeak + impls::Object, O: ObjectBox<Object = T> + ObjectBoxWeak> VT<T, IWeak, O>
@@ -122,7 +121,6 @@ pub mod details {
             f_AddRefWeak: Self::f_AddRefWeak,
             f_ReleaseWeak: Self::f_ReleaseWeak,
             f_TryUpgrade: Self::f_TryUpgrade,
-            f_TryDowngrade: Self::f_TryDowngrade,
         };
 
         unsafe extern "C" fn f_AddRefWeak(this: *const IWeak) -> u32 {
@@ -133,9 +131,6 @@ pub mod details {
         }
         unsafe extern "C" fn f_TryUpgrade(this: *const IWeak) -> bool {
             unsafe { O::TryUpgrade(this as _) }
-        }
-        unsafe extern "C" fn f_TryDowngrade(this: *const IWeak) -> bool {
-            unsafe { O::TryDowngrade(this as _) }
         }
     }
 
@@ -304,10 +299,6 @@ impl IWeak {
     pub fn TryUpgrade(&self) -> bool {
         unsafe { ((*self.v_ptr()).f_TryUpgrade)(self) }
     }
-
-    pub fn TryDowngrade(&self) -> bool {
-        unsafe { ((*self.v_ptr()).f_TryDowngrade)(self) }
-    }
 }
 
 impl impls::RefCount for IWeak {
@@ -331,10 +322,6 @@ impl impls::WeakRefCount for IWeak {
 
     fn TryUpgrade(this: *const Self) -> bool {
         Self::TryUpgrade(unsafe { &*this })
-    }
-
-    fn TryDowngrade(this: *const Self) -> bool {
-        Self::TryDowngrade(unsafe { &*this })
     }
 }
 
@@ -393,7 +380,6 @@ pub mod impls {
         fn AddRefWeak(this: *const Self) -> u32;
         fn ReleaseWeak(this: *const Self) -> u32;
         fn TryUpgrade(this: *const Self) -> bool;
-        fn TryDowngrade(this: *const Self) -> bool;
     }
 
     pub trait IUnknown {}

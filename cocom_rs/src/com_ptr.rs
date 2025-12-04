@@ -70,13 +70,10 @@ impl<T: impls::RefCount> ComPtr<T> {
 }
 
 impl<T: impls::WeakRefCount> ComPtr<T> {
-    pub fn downgrade(&self) -> Option<ComWeak<T>> {
+    pub fn downgrade(&self) -> ComWeak<T> {
         unsafe {
-            if T::TryDowngrade(self.ptr.as_ptr()) {
-                Some(ComWeak::new(self.ptr))
-            } else {
-                None
-            }
+            T::AddRefWeak(self.ptr.as_ptr());
+            ComWeak::new(self.ptr)
         }
     }
 }

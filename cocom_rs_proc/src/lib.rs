@@ -118,10 +118,6 @@ pub fn interface(attr: TokenStream, item: TokenStream) -> TokenStream {
                 fn TryUpgrade(this: *const Self) -> bool {
                     IWeak::TryUpgrade(unsafe { &*this })
                 }
-
-                fn TryDowngrade(this: *const Self) -> bool {
-                    IWeak::TryDowngrade(unsafe { &*this })
-                }
             }
         }
     };

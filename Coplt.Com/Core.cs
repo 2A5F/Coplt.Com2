@@ -43,5 +43,4 @@ public partial struct IWeak
     public readonly partial uint AddRefWeak();
     public readonly partial uint ReleaseWeak();
     public readonly partial bool TryUpgrade();
-    public readonly partial bool TryDowngrade();
 }

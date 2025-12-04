@@ -434,57 +434,6 @@ impl<T: impls::Object> impls::WeakRefCount for WeakObject<T> {
                 .is_ok()
         }
     }
-
-    fn TryDowngrade(this: *const Self) -> bool {
-        #[inline]
-        fn checked_increment(n: u32) -> Option<u32> {
-            if n == 0 {
-                return None;
-            }
-            Some(n + 1)
-        }
-        unsafe {
-            (*this)
-                .weak
-                .fetch_update(Ordering::Acquire, Ordering::Relaxed, checked_increment)
-                .is_ok()
-        }
-    }
-    // fn AddRefWeak(&self) -> u32 {
-    //     self.weak.fetch_add(1, Ordering::Relaxed)
-    // }
-
-    // fn ReleaseWeak(&self) -> u32 {
-    //     unsafe { Self::ReleaseWeak_(self as *const _ as _) }
-    // }
-
-    // fn TryUpgrade(&self) -> bool {
-    //     #[inline]
-    //     fn checked_increment(n: u32) -> Option<u32> {
-    //         if n == 0 {
-    //             return None;
-    //         }
-    //         Some(n + 1)
-    //     }
-
-    //     self.strong
-    //         .fetch_update(Ordering::Acquire, Ordering::Relaxed, checked_increment)
-    //         .is_ok()
-    // }
-
-    // fn TryDowngrade(&self) -> bool {
-    //     #[inline]
-    //     fn checked_increment(n: u32) -> Option<u32> {
-    //         if n == 0 {
-    //             return None;
-    //         }
-    //         Some(n + 1)
-    //     }
-
-    //     self.weak
-    //         .fetch_update(Ordering::Acquire, Ordering::Relaxed, checked_increment)
-    //         .is_ok()
-    // }
 }
 
 impl<T: impls::Object> Deref for WeakObject<T> {

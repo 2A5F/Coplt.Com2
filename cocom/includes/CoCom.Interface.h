@@ -337,7 +337,6 @@ namespace Coplt
         u32 (*const COPLT_CDECL f_AddRefWeak)(const IWeak*);
         u32 (*const COPLT_CDECL f_ReleaseWeak)(const IWeak*);
         bool (*const COPLT_CDECL f_TryUpgrade)(const IWeak*);
-        bool (*const COPLT_CDECL f_TryDowngrade)(const IWeak*);
     };
 
     namespace Internal::VirtualImpl_IWeak
@@ -345,7 +344,6 @@ namespace Coplt
         extern "C" u32 COPLT_CDECL AddRefWeak(const IWeak* self) noexcept;
         extern "C" u32 COPLT_CDECL ReleaseWeak(const IWeak* self) noexcept;
         extern "C" bool COPLT_CDECL TryUpgrade(const IWeak* self) noexcept;
-        extern "C" bool COPLT_CDECL TryDowngrade(const IWeak* self) noexcept;
     }
 
     template <>
@@ -381,7 +379,6 @@ namespace Coplt
                 .f_AddRefWeak = VirtualImpl_IWeak::AddRefWeak,
                 .f_ReleaseWeak = VirtualImpl_IWeak::ReleaseWeak,
                 .f_TryUpgrade = VirtualImpl_IWeak::TryUpgrade,
-                .f_TryDowngrade = VirtualImpl_IWeak::TryDowngrade,
             };
             return vtb;
         }
@@ -391,7 +388,6 @@ namespace Coplt
             virtual u32 Impl_AddRefWeak() const = 0;
             virtual u32 Impl_ReleaseWeak() const = 0;
             virtual bool Impl_TryUpgrade() const = 0;
-            virtual bool Impl_TryDowngrade() const = 0;
         };
 
         template <std::derived_from<IWeak> Base = IWeak>
@@ -429,11 +425,6 @@ namespace Coplt
             {
                 return AsImpl(self)->Impl_TryUpgrade();
             }
-
-            static bool COPLT_CDECL f_TryDowngrade(const IWeak* self) noexcept
-            {
-                return AsImpl(self)->Impl_TryDowngrade();
-            }
         };
 
         template <class Impl>
@@ -443,7 +434,6 @@ namespace Coplt
             .f_AddRefWeak = VirtualImpl<Impl>::f_AddRefWeak,
             .f_ReleaseWeak = VirtualImpl<Impl>::f_ReleaseWeak,
             .f_TryUpgrade = VirtualImpl<Impl>::f_TryUpgrade,
-            .f_TryDowngrade = VirtualImpl<Impl>::f_TryDowngrade,
         };
     };
 
@@ -462,11 +452,6 @@ namespace Coplt
         extern "C" inline bool COPLT_CDECL TryUpgrade(const IWeak* self) noexcept
         {
             return AsImpl<IWeak>(self)->Impl_TryUpgrade();
-        }
-
-        extern "C" inline bool COPLT_CDECL TryDowngrade(const IWeak* self) noexcept
-        {
-            return AsImpl<IWeak>(self)->Impl_TryDowngrade();
         }
     }
 
@@ -487,11 +472,6 @@ namespace Coplt
         {
             return COPLT_COM_PVTB(IWeak, self)->f_TryUpgrade(self);
         }
-
-        static COPLT_FORCE_INLINE bool TryDowngrade(const IWeak* self)
-        {
-            return COPLT_COM_PVTB(IWeak, self)->f_TryDowngrade(self);
-        }
     };
 
 #define COPLT_COM_INTERFACE_BODY_IWeak\
@@ -508,7 +488,6 @@ namespace Coplt
         COPLT_COM_METHOD(AddRefWeak, u32, () const)
         COPLT_COM_METHOD(ReleaseWeak, u32, () const)
         COPLT_COM_METHOD(TryUpgrade, bool, () const)
-        COPLT_COM_METHOD(TryDowngrade, bool, () const)
     };
 }
 

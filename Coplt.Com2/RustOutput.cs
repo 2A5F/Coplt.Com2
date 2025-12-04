@@ -226,6 +226,7 @@ public record RustOutput : AOutput
             .AsParallel()
             .OrderBy(a => a.Key, StringComparer.Ordinal)
             .Select(a => a.Value)
+            .Where(a => a.Export)
             .Select(a =>
             {
                 var sb = new StringBuilder();
@@ -268,6 +269,7 @@ public record RustOutput : AOutput
             .AsParallel()
             .OrderBy(a => a.Key, StringComparer.Ordinal)
             .Select(a => a.Value)
+            .Where(a => a.Export)
             .Select(a =>
             {
                 var sb = new StringBuilder();
@@ -380,6 +382,7 @@ public record RustOutput : AOutput
             .AsParallel()
             .OrderBy(a => a.Key, StringComparer.Ordinal)
             .Select(a => a.Value)
+            .Where(a => a.Export)
             .Select(a =>
             {
                 var sb = new StringBuilder();

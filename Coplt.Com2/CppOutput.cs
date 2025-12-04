@@ -178,6 +178,7 @@ public record CppOutput : AOutput
             .AsParallel()
             .OrderBy(a => a.Key, StringComparer.Ordinal)
             .Select(a => a.Value)
+            .Where(a => a.Export)
             .Select(a => $"{space}struct {a.Name};").ToList();
         root_sb.AppendLine();
         root_sb.AppendJoin($"{Environment.NewLine}{Environment.NewLine}", interfaces_pre_define);
@@ -280,6 +281,7 @@ public record CppOutput : AOutput
             .AsParallel()
             .OrderBy(a => a.Key, StringComparer.Ordinal)
             .Select(a => a.Value)
+            .Where(a => a.Export)
             .Select(a =>
             {
                 var sb = new StringBuilder();
@@ -302,6 +304,7 @@ public record CppOutput : AOutput
             .AsParallel()
             .OrderBy(a => a.Key, StringComparer.Ordinal)
             .Select(a => a.Value)
+            .Where(a => a.Export)
             .Select(a =>
             {
                 var sb = new StringBuilder();
@@ -678,6 +681,7 @@ public record CppOutput : AOutput
             .AsParallel()
             .OrderBy(a => a.Key, StringComparer.Ordinal)
             .Select(a => a.Value)
+            .Where(a => a.Export)
             .Select(a =>
             {
                 var sb = new StringBuilder();
@@ -800,8 +804,11 @@ public record CppOutput : AOutput
         var space = Namespace is null ? "" : "    ";
         if (ids.Parent is { } parent)
         {
-            GenObject(code, parent);
-            code.Add("");
+            if (parent.Name is not ("IWeak" or "IUnknown"))
+            {
+                GenObject(code, parent);
+                code.Add("");
+            }
         }
         if (ids.Methods.Count > 0) code.Add("");
         foreach (var method in ids.Methods)

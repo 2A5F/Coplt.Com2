@@ -6,6 +6,7 @@ namespace Coplt.Com2.DefineModel;
 
 public struct InterfaceDeclare
 {
+    public bool Export { get; set; }
     public required string Name { get; set; }
     public required Guid Guid { get; set; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]

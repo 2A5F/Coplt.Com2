@@ -142,7 +142,6 @@ internal class SymbolDb
 
         var interfaces = Interfaces
             .AsParallel()
-            .Where(a => a.Value.Export)
             .OrderBy(a => a.Key, StringComparer.Ordinal)
             .Select(a => a.Value)
             .Select((a, i) =>
@@ -152,6 +151,7 @@ internal class SymbolDb
             })
             .Select(a => new InterfaceDeclare
             {
+                Export = a.Export,
                 Name = a.Name,
                 Guid = a.Guid,
                 Parent = a.Parent?.Guid,
