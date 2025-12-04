@@ -3,9 +3,8 @@
 use proc_macro::TokenStream;
 use quote::{format_ident, quote};
 use syn::{
-    Attribute, FieldsNamed, Generics, Ident, ItemStruct, ItemTrait, LitStr, Token, TraitItemFn,
-    Type, TypeParamBound, Visibility, braced, parse::Parse, parse_macro_input,
-    punctuated::Punctuated, token::Brace,
+    Attribute, FieldsNamed, Generics, Ident, ItemStruct, LitStr, Token, TraitItemFn, Type,
+    Visibility, braced, parse::Parse, parse_macro_input, punctuated::Punctuated, token::Brace,
 };
 
 struct InterfaceAttr {

@@ -355,6 +355,8 @@ pub mod impls {
     pub trait ObjectBox {
         type Object: Object;
 
+        unsafe fn GetObject(this: *mut <Self::Object as Object>::Interface) -> *mut Self::Object;
+
         unsafe fn AddRef(this: *mut <Self::Object as Object>::Interface) -> u32;
         unsafe fn Release(this: *mut <Self::Object as Object>::Interface) -> u32;
     }

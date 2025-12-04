@@ -26,7 +26,7 @@ public record RustOutput : AOutput
         sb.AppendLine("#![allow(non_camel_case_types)]");
 
         sb.AppendLine();
-        sb.AppendLine("use cocom::{Guid, HResult, Interface, IUnknown, IWeak};");
+        sb.AppendLine("use cocom::{Guid, HResult, HResultE, Interface, IUnknown, IWeak};");
 
         GenInterfaces(db, sb);
         GenTypes(db, sb);
@@ -208,6 +208,16 @@ public record RustOutput : AOutput
         return $"{a.Parent.Name} + {BuildParentList(a.Parent)}";
     }
 
+    internal bool IsWeak(InterfaceDeclareSymbol a)
+    {
+        while (true)
+        {
+            if (a.Parent == null) return false;
+            if (a.Parent.Name == "IWeak") return true;
+            a = a.Parent;
+        }
+    }
+
     internal void GenInterfaces(SymbolDb db, StringBuilder root_sb)
     {
         #region Interfaces
@@ -249,6 +259,8 @@ public record RustOutput : AOutput
         root_sb.AppendLine("pub mod details {");
         root_sb.AppendLine("    pub use cocom::details::*;");
         root_sb.AppendLine("    use super::*;");
+        root_sb.AppendLine();
+        root_sb.AppendLine("    struct VT<T, V, O>(core::marker::PhantomData<(T, V, O)>);");
 
         #region Interfaces
 
@@ -260,6 +272,8 @@ public record RustOutput : AOutput
             {
                 var sb = new StringBuilder();
                 var name = a.Name;
+                var is_weak = IsWeak(a);
+                var ObjectBoxWeak = is_weak ? " + impls::ObjectBoxWeak" : "";
                 var parent = a.Parent?.Name ?? "IUnknown";
                 sb.AppendLine();
                 sb.AppendLine($"    #[repr(C)]");
@@ -279,6 +293,70 @@ public record RustOutput : AOutput
                     }
                     sb.AppendLine($") -> {ToRustName(method.ReturnType)},");
                 }
+                sb.AppendLine($"    }}");
+                sb.AppendLine();
+                sb.AppendLine($"    impl<T: impls::{name} + impls::Object, O: impls::ObjectBox<Object = T>{ObjectBoxWeak}> VT<T, {name}, O>");
+                sb.AppendLine($"    where");
+                sb.AppendLine($"        T::Interface: details::QuIn<T, O>,");
+                sb.AppendLine($"    {{");
+                sb.AppendLine($"        pub const VTBL: VitualTable_{name} = VitualTable_{name} {{");
+                sb.AppendLine($"            b: <{parent} as Vtbl<O>>::VTBL,");
+                foreach (var method in a.Methods)
+                {
+                    sb.AppendLine($"            f_{method.Name}: Self::f_{method.Name},");
+                }
+                sb.AppendLine($"        }};");
+                sb.AppendLine();
+                foreach (var method in a.Methods)
+                {
+                    sb.Append(
+                        $"        unsafe extern \"C\" fn f_{method.Name}(this: *const {name}");
+                    foreach (var param in method.Params)
+                    {
+                        sb.Append(", ");
+                        var o = (param.Flags & ParamFlags.Out) != 0 ? "/* out */ " : "";
+                        sb.Append($"{o}{param.Name}: {ToRustName(param.Type)}");
+                    }
+                    sb.AppendLine($") -> {ToRustName(method.ReturnType)} {{");
+                    sb.Append($"            unsafe {{ (*O::GetObject(this as _)).{method.Name}(");
+                    var first = true;
+                    foreach (var param in method.Params)
+                    {
+                        if (first) first = false;
+                        else sb.Append(", ");
+                        sb.Append($"{param.Name}");
+                    }
+                    sb.AppendLine($") }}");
+                    sb.AppendLine($"        }}");
+                }
+                sb.AppendLine($"    }}");
+                sb.AppendLine();
+                sb.AppendLine($"    impl<T: impls::{name} + impls::Object, O: impls::ObjectBox<Object = T>{ObjectBoxWeak}> Vtbl<O> for {name}");
+                sb.AppendLine($"    where");
+                sb.AppendLine($"        T::Interface: details::QuIn<T, O>,");
+                sb.AppendLine($"    {{");
+                sb.AppendLine($"        const VTBL: <{name} as Interface>::VitualTable = VT::<T, {name}, O>::VTBL;");
+                sb.AppendLine();
+                sb.AppendLine($"        fn vtbl() -> &'static Self::VitualTable {{");
+                sb.AppendLine($"            &<Self as Vtbl<O>>::VTBL");
+                sb.AppendLine($"        }}");
+                sb.AppendLine($"    }}");
+                sb.AppendLine();
+                sb.AppendLine($"    impl<T: impls::{name} + impls::Object, O: impls::ObjectBox<Object = T>> QuIn<T, O> for {name} {{");
+                sb.AppendLine($"        unsafe fn QueryInterface(");
+                sb.AppendLine($"            this: *mut T,");
+                sb.AppendLine($"            guid: *const Guid,");
+                sb.AppendLine($"            out: *mut *mut core::ffi::c_void,");
+                sb.AppendLine($"        ) -> HResult {{");
+                sb.AppendLine($"            unsafe {{");
+                sb.AppendLine($"                if *guid == {name}::GUID {{");
+                sb.AppendLine($"                    *out = this as _;");
+                sb.AppendLine($"                    O::AddRef(this as _);");
+                sb.AppendLine($"                    return HResultE::Ok.into();");
+                sb.AppendLine($"                }}");
+                sb.AppendLine($"                <{parent} as QuIn<T, O>>::QueryInterface(this, guid, out)");
+                sb.AppendLine($"            }}");
+                sb.AppendLine($"        }}");
                 sb.AppendLine($"    }}");
                 return sb.ToString();
             }).ToList();

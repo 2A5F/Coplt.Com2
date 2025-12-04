@@ -131,6 +131,15 @@ where
 impl<T: impls::Object> impls::ObjectBox for Object<T> {
     type Object = T;
 
+    unsafe fn GetObject(
+        this: *mut <Self::Object as impls::Object>::Interface,
+    ) -> *mut Self::Object {
+        unsafe {
+            let this = this as *mut Self;
+            &mut *(*this).val
+        }
+    }
+
     unsafe fn AddRef(this: *mut T::Interface) -> u32 {
         unsafe {
             let this = this as *mut Self;
@@ -301,6 +310,15 @@ where
 
 impl<T: impls::Object> impls::ObjectBox for WeakObject<T> {
     type Object = T;
+
+    unsafe fn GetObject(
+        this: *mut <Self::Object as impls::Object>::Interface,
+    ) -> *mut Self::Object {
+        unsafe {
+            let this = this as *mut Self;
+            &mut *(*this).val
+        }
+    }
 
     unsafe fn AddRef(this: *mut T::Interface) -> u32 {
         unsafe {
