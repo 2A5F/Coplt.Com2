@@ -138,16 +138,29 @@ namespace Coplt
         u32 Impl_Release() const
         {
             const auto r = m_strong.fetch_sub(1, ::std::memory_order_release);
-            if (r != 1) [[likely]] return r;
-            if constexpr (requires(const Self* ptr) { ptr->OnRelease(); })
+            if (r != 1) [[likely]]
             {
-                static_cast<const Self*>(this)->OnRelease();
+                if constexpr (requires(const Self* ptr) { ptr->OnStrongCountSub(r); })
+                {
+                    static_cast<const Self*>(this)->OnStrongCountSub(r);
+                }
+                return r;
+            }
+            if constexpr (requires(const Self* ptr) { ptr->OnDelete(); })
+            {
+                static_cast<const Self*>(this)->OnDelete();
             }
             else
             {
                 delete static_cast<const Self*>(this);
             }
             return r;
+        }
+
+    protected:
+        u32 GetStrongCount() const noexcept
+        {
+            return m_strong.load(::std::memory_order_acquire);
         }
     };
 
@@ -169,7 +182,14 @@ namespace Coplt
         u32 Impl_Release() const
         {
             const auto r = m_strong.fetch_sub(1, ::std::memory_order_release);
-            if (r != 1) [[likely]] return r;
+            if (r != 1) [[likely]]
+            {
+                if constexpr (requires(const Self* ptr) { ptr->OnStrongCountSub(r); })
+                {
+                    static_cast<const Self*>(this)->OnStrongCountSub(r);
+                }
+                return r;
+            }
             DropSlow();
             return r;
         }
@@ -200,8 +220,8 @@ namespace Coplt
         bool Impl_TryUpgrade() const
         {
             size_t cur = m_strong.load(std::memory_order_relaxed);
-            re_try:
-                if (cur == 0) return false;
+        re_try:
+            if (cur == 0) return false;
             if (m_strong.compare_exchange_weak(cur, cur + 1, std::memory_order_acquire, std::memory_order_relaxed))
             {
                 return true;
@@ -216,12 +236,24 @@ namespace Coplt
             // ReSharper disable once CppExpressionWithoutSideEffects
             Impl_ReleaseWeak();
         }
+
+    protected:
+        u32 GetStrongCount() const noexcept
+        {
+            return m_strong.load(::std::memory_order_acquire);
+        }
+
+        u32 GetWeakCount() const noexcept
+        {
+            return m_weak.load(::std::memory_order_acquire);
+        }
     };
 
     template <class Self, Interface I>
     struct ComImpl : I, Impl_RefCount<Self>
     {
-        ComImpl() : I(&Internal::ComProxy<I>::template s_vtb<Self>), Impl_RefCount<Self>()
+        ComImpl()
+            : I(&Internal::ComProxy<I>::template s_vtb<Self>), Impl_RefCount<Self>()
         {
         }
 
@@ -237,7 +269,8 @@ namespace Coplt
         requires std::derived_from<I, IWeak>
     struct ComImpl<Self, I> : I, Impl_WeakRefCount<Self>
     {
-        ComImpl() : I(&Internal::ComProxy<I>::template s_vtb<Self>), Impl_WeakRefCount<Self>()
+        ComImpl()
+            : I(&Internal::ComProxy<I>::template s_vtb<Self>), Impl_WeakRefCount<Self>()
         {
         }
 

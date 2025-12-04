@@ -27,7 +27,6 @@ namespace Coplt
         { t.AddRefWeak() } -> std::convertible_to<u32>;
         { t.ReleaseWeak() } -> std::convertible_to<u32>;
         { t.TryUpgrade() } -> std::convertible_to<bool>;
-        { t.TryDowngrade() } -> std::convertible_to<bool>;
     };
 }
 

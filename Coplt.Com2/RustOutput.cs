@@ -63,7 +63,7 @@ public record RustOutput : AOutput
                 var arg = symbol.GenericsOrParams.IsDefaultOrEmpty
                     ? ""
                     : $"{string.Join(", ", symbol.GenericsOrParams.Select(a => ToRustName(a, false, super)))}";
-                return $"unsafe extern \"C\" fn({arg}) -> {ToRustName(symbol.TargetOrReturn!, false, super)}";
+                return $"unsafe extern \"C\" fn({arg}) -> {ToRustName(symbol.TargetOrReturn!, true, super)}";
             }
             case TypeKind.Void:
                 return is_root ? "()" : "core::ffi::c_void";

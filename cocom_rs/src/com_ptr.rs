@@ -12,24 +12,23 @@ pub trait Upcast<T, U> {
     fn upcast(self) -> Self::Output;
 }
 
+#[repr(transparent)]
 #[derive(PartialEq, Eq, PartialOrd, Ord, Hash)]
 pub struct ComPtr<T: impls::RefCount> {
     ptr: NonNull<T>,
-    _p: core::marker::PhantomData<T>,
 }
+
+unsafe impl<T: impls::RefCount> Send for ComPtr<T> {}
+unsafe impl<T: impls::RefCount> Sync for ComPtr<T> {}
 
 impl<T: impls::RefCount> ComPtr<T> {
     pub unsafe fn new(ptr: NonNull<T>) -> Self {
-        Self {
-            ptr,
-            _p: core::marker::PhantomData,
-        }
+        Self { ptr }
     }
 
     pub unsafe fn create(ptr: *mut T) -> Option<Self> {
         Some(Self {
             ptr: NonNull::new(ptr)?,
-            _p: core::marker::PhantomData,
         })
     }
 
@@ -47,10 +46,7 @@ impl<T: impls::RefCount> Drop for ComPtr<T> {
 impl<T: impls::RefCount> Clone for ComPtr<T> {
     fn clone(&self) -> Self {
         unsafe { T::AddRef(self.ptr.as_ptr()) };
-        Self {
-            ptr: self.ptr,
-            _p: self._p,
-        }
+        Self { ptr: self.ptr }
     }
 }
 
@@ -97,7 +93,6 @@ impl<U: impls::RefCount, T: impls::RefCount + impls::Inherit<U>> Upcast<T, U> fo
         let value = self.leak();
         Self::Output {
             ptr: unsafe { NonNull::new_unchecked((*value).as_ref() as *const U as *mut U) },
-            _p: core::marker::PhantomData,
         }
     }
 }

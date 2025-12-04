@@ -8,7 +8,7 @@
 
 namespace Coplt
 {
-    template <class T>
+    template <WeakReferenceCounting T>
     class Weak;
 
     template <class T>
@@ -19,7 +19,7 @@ namespace Coplt
         template <class U>
         friend class Rc;
 
-        template <class U>
+        template <WeakReferenceCounting U>
         friend class Weak;
 
         struct clone_t
@@ -31,8 +31,7 @@ namespace Coplt
         };
 
         // clone
-        template <class = void> requires ReferenceCounting<T>
-        explicit Rc(T* ptr, clone_t)
+        explicit Rc(T* ptr, clone_t) requires ReferenceCounting<T>
             : m_ptr(ptr)
         {
             if (auto p = m_ptr)
@@ -42,8 +41,7 @@ namespace Coplt
         }
 
         // upgrade
-        template <class = void> requires WeakReferenceCounting<T>
-        explicit Rc(T* ptr, upgrade_t)
+        explicit Rc(T* ptr, upgrade_t) requires WeakReferenceCounting<T>
             : m_ptr(ptr && ptr->TryUpgrade() ? ptr : nullptr)
         {
         }
@@ -214,8 +212,7 @@ namespace Coplt
             return get() == other.get();
         }
 
-        template <class = void> requires WeakReferenceCounting<T>
-        Weak<T> downgrade() const
+        auto downgrade() const requires WeakReferenceCounting<T>
         {
             return Weak(get(), typename Weak<T>::downgrade_t());
         }
@@ -225,37 +222,37 @@ namespace Coplt
             return Rc(ptr, clone_t{});
         }
 
-        template <class U> requires requires (T* ptr) { static_cast<U*>(ptr); }
+        template <class U> requires requires(T* ptr) { static_cast<U*>(ptr); }
         Rc<U> StaticCast() const
         {
             return Rc<U>(static_cast<U*>(m_ptr), typename Rc<U>::clone_t{});
         }
 
-        template <class U> requires requires (T* ptr) { static_cast<U*>(ptr); }
+        template <class U> requires requires(T* ptr) { static_cast<U*>(ptr); }
         Rc<U> StaticCastMove()
         {
             return Rc<U>(static_cast<U*>(std::exchange(m_ptr, nullptr)));
         }
 
-        template <class U> requires requires (T* ptr) { dynamic_cast<U*>(ptr); }
+        template <class U> requires requires(T* ptr) { dynamic_cast<U*>(ptr); }
         Rc<U> DynamicCast() const
         {
             return Rc<U>(dynamic_cast<U*>(m_ptr), typename Rc<U>::clone_t{});
         }
 
-        template <class U> requires requires (T* ptr) { dynamic_cast<U*>(ptr); }
+        template <class U> requires requires(T* ptr) { dynamic_cast<U*>(ptr); }
         Rc<U> DynamicCastMove()
         {
             return Rc<U>(dynamic_cast<U*>(std::exchange(m_ptr, nullptr)));
         }
     };
 
-    template <class T>
+    template <WeakReferenceCounting T>
     class Weak final
     {
         T* m_ptr;
 
-        template <class U>
+        template <WeakReferenceCounting U>
         friend class Weak;
 
         template <class U>
@@ -270,7 +267,6 @@ namespace Coplt
         };
 
         // clone
-        template <class = void> requires WeakReferenceCounting<T>
         explicit Weak(T* ptr, clone_t)
             : m_ptr(ptr)
         {
@@ -281,7 +277,6 @@ namespace Coplt
         }
 
         // downgrade
-        template <class = void> requires WeakReferenceCounting<T>
         explicit Weak(T* ptr, downgrade_t)
             : m_ptr(ptr ? ptr->AddRefWeak(), ptr : nullptr)
         {
@@ -290,11 +285,16 @@ namespace Coplt
     public:
         using DerefType = T;
 
+        // downgrade
+        Weak(const Rc<T>& other) noexcept
+            : Weak(other.m_ptr, downgrade_t{})
+        {
+        }
+
         // null
         Weak() noexcept
             : m_ptr(nullptr)
         {
-            static_assert(WeakReferenceCounting<T>);
         }
 
         // null
@@ -302,7 +302,6 @@ namespace Coplt
         Weak(std::nullptr_t) noexcept
             : m_ptr(nullptr) // NOLINT(*-explicit-constructor)
         {
-            static_assert(WeakReferenceCounting<T>);
         }
 
         // copy
@@ -418,12 +417,23 @@ namespace Coplt
         {
             return Rc(get(), typename Rc<T>::upgrade_t());
         }
+
+        static Weak UnsafeDowngrade(T* ptr)
+        {
+            return Weak(ptr, downgrade_t{});
+        }
     };
 
     template <class T>
     Rc<T> CloneRc(T* ptr)
     {
         return Rc<T>::UnsafeClone(ptr);
+    }
+
+    template <WeakReferenceCounting T>
+    Weak<T> MakeWeak(T* ptr)
+    {
+        return Weak<T>::UnsafeDowngrade(ptr);
     }
 }
 
