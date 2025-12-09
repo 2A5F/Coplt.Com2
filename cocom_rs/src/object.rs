@@ -3,7 +3,7 @@ use core::{
     borrow::Borrow,
     cell::UnsafeCell,
     hash::Hash,
-    mem::ManuallyDrop,
+    mem::{ManuallyDrop, MaybeUninit},
     ptr::{NonNull, drop_in_place},
     sync::atomic::{AtomicU32, Ordering},
 };
@@ -97,6 +97,21 @@ impl<T: impls::Object> Object<T> {
     }
 }
 
+impl<T: impls::Object> Object<T> {
+    pub unsafe fn GetStrongCount(this: *mut Self) -> u32 {
+        unsafe { (*this).strong.load(Ordering::Acquire) }
+    }
+
+    pub unsafe fn FromValue(value: *mut T) -> *mut Self {
+        unsafe {
+            let offset = core::mem::size_of::<T::Interface>() + core::mem::size_of::<AtomicU32>();
+            let ptr = value as *mut u8;
+            let ptr = ptr.sub(offset);
+            ptr as _
+        }
+    }
+}
+
 impl<T: impls::Object> Object<T>
 where
     T::Interface: details::Vtbl<Self>,
@@ -112,6 +127,18 @@ where
             val: ManuallyDrop::new(val),
         }));
         b as *mut _
+    }
+
+    pub unsafe fn inplace(init: impl FnOnce(*mut T)) -> ObjectPtr<T> {
+        unsafe {
+            let b = Box::leak(Box::<Self>::new_uninit()).as_mut_ptr();
+            pmp!(b; .base).write(T::Interface::new(
+                <T::Interface as details::Vtbl<Self>>::vtbl(),
+            ));
+            pmp!(b; .strong).write(AtomicU32::new(1));
+            init(pmp!(b; .val) as *mut _);
+            ObjectPtr(ComPtr::new(NonNull::new_unchecked(b)))
+        }
     }
 }
 
@@ -275,6 +302,25 @@ impl<T: impls::Object> WeakObject<T> {
         }
     }
 }
+impl<T: impls::Object> WeakObject<T> {
+    pub unsafe fn GetStrongCount(this: *mut Self) -> u32 {
+        unsafe { (*this).strong.load(Ordering::Acquire) }
+    }
+
+    pub unsafe fn GetWeakCount(this: *mut Self) -> u32 {
+        unsafe { (*this).weak.load(Ordering::Acquire) }
+    }
+
+    pub unsafe fn FromValue(value: *mut T) -> *mut Self {
+        unsafe {
+            let offset =
+                core::mem::size_of::<T::Interface>() + core::mem::size_of::<AtomicU32>() * 2;
+            let ptr = value as *mut u8;
+            let ptr = ptr.sub(offset);
+            ptr as _
+        }
+    }
+}
 
 impl<T: impls::Object> WeakObject<T>
 where
@@ -292,6 +338,19 @@ where
             val: ManuallyDrop::new(val),
         }));
         b as *mut _
+    }
+
+    pub unsafe fn inplace(init: impl FnOnce(*mut T)) -> WeakObjectPtr<T> {
+        unsafe {
+            let b = Box::leak(Box::<Self>::new_uninit()).as_mut_ptr();
+            pmp!(b; .base).write(T::Interface::new(
+                <T::Interface as details::Vtbl<Self>>::vtbl(),
+            ));
+            pmp!(b; .strong).write(AtomicU32::new(1));
+            pmp!(b; .weak).write(AtomicU32::new(1));
+            init(pmp!(b; .val) as *mut _);
+            WeakObjectPtr(ComPtr::new(NonNull::new_unchecked(b)))
+        }
     }
 }
 

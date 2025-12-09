@@ -21,6 +21,28 @@ pub use guid::*;
 pub use hresult::*;
 pub use object::{MakeObject, MakeObjectWeak};
 
+/// field projection for mut ptr
+#[macro_export]
+macro_rules! pmp {
+    { $s:expr; .$name:ident } => {
+        {
+            let ptr: *mut _ = &mut (*($s)).$name;
+            ptr
+        }
+    };
+}
+
+/// field projection for const ptr
+#[macro_export]
+macro_rules! pcp {
+    { $s:expr; .$name:ident } => {
+        {
+            let ptr: *const _ = &(*($s)).$name;
+            ptr
+        }
+    };
+}
+
 pub trait Interface: Debug {
     const GUID: Guid;
     type VitualTable: 'static;

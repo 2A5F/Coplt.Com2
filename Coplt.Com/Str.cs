@@ -27,7 +27,7 @@ public unsafe struct Str8 : IEquatable<Str8>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static bool operator !=(Str8 left, Str8 right) => !left.Equals(right);
 
-    public override string ToString() => Encoding.UTF8.GetString(Data, (int)Size);
+    public override string ToString() => Data == null ? "" : Encoding.UTF8.GetString(Data, (int)Size);
 
     public Span<byte> AsSpan
     {
@@ -110,7 +110,7 @@ public unsafe struct Str16 : IEquatable<Str16>
     [MethodImpl(MethodImplOptions.AggressiveInlining)]
     public static bool operator !=(Str16 left, Str16 right) => !left.Equals(right);
 
-    public override string ToString() => new(Data, 0, (int)Size);
+    public override string ToString() => Data == null ? "" : new(Data, 0, (int)Size);
 
     public Span<char> AsSpan
     {
