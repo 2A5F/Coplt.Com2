@@ -135,19 +135,52 @@ public record RustOutput : AOutput
                 var name = a.Name.Split('.', '+').Last();
                 var underlying = ToRustName(a.UnderlyingType);
                 sb.AppendLine();
-                // todo flags
-                var value_cache = new Dictionary<string, string>();
-                sb.AppendLine($"#[repr({underlying})]");
-                sb.AppendLine($"#[derive(Debug, Clone, Copy, PartialEq, PartialOrd)]");
-                sb.AppendLine($"pub enum {name} {{");
-                foreach (var item in a.Items)
+                if ((a.Flags & EnumFlags.Flags) != 0)
                 {
-                    if (value_cache.TryAdd(item.Value, item.Name))
+                    var value_cache = new Dictionary<string, string>();
+                    sb.AppendLine($"bitflags::bitflags! {{");
+                    sb.AppendLine($"    #[repr(transparent)]");
+                    sb.AppendLine($"    #[derive(Debug, Clone, Copy, PartialEq, PartialOrd)]");
+                    sb.AppendLine($"    pub struct {name} : {underlying} {{");
+                    foreach (var item in a.Items)
                     {
-                        sb.AppendLine($"    {item.Name} = {item.Value},");
+                        if (value_cache.TryAdd(item.Value, item.Name))
+                        {
+                            sb.AppendLine($"        const {item.Name} = {item.Value};");
+                        }
                     }
+                    sb.AppendLine($"        const _ = !0;");
+                    sb.AppendLine($"    }}");
+                    sb.AppendLine($"}}");
+                    sb.AppendLine();
+                    sb.AppendLine($"impl From<{underlying}> for {name} {{");
+                    sb.AppendLine($"    fn from(value: {underlying}) -> Self {{");
+                    sb.AppendLine($"        Self::from_bits_retain(value)");
+                    sb.AppendLine($"    }}");
+                    sb.AppendLine($"}}");
+                    sb.AppendLine();
+                    sb.AppendLine($"impl From<{name}> for {underlying} {{");
+                    sb.AppendLine($"    fn from(value: {name}) -> Self {{");
+                    sb.AppendLine($"        value.bits()");
+                    sb.AppendLine($"    }}");
+                    sb.AppendLine($"}}");
                 }
-                sb.AppendLine($"}}");
+                else
+                {
+                    var value_cache = new Dictionary<string, string>();
+                    sb.AppendLine($"#[repr({underlying})]");
+                    sb.AppendLine($"#[derive(Debug, Clone, Copy, PartialEq, PartialOrd)]");
+                    sb.AppendLine($"pub enum {name} {{");
+                    foreach (var item in a.Items)
+                    {
+                        if (value_cache.TryAdd(item.Value, item.Name))
+                        {
+                            sb.AppendLine($"    {item.Name} = {item.Value},");
+                        }
+                    }
+                    sb.AppendLine($"}}");
+                }
+
                 return sb.ToString();
             }).ToList();
         root_sb.AppendJoin("", enums);
