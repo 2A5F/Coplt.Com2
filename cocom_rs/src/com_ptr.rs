@@ -26,6 +26,12 @@ impl<T: impls::RefCount> ComPtr<T> {
         Self { ptr }
     }
 
+    pub unsafe fn new_unchecked(ptr: *mut T) -> Self {
+        Self {
+            ptr: unsafe { NonNull::new_unchecked(ptr) },
+        }
+    }
+
     pub unsafe fn create(ptr: *mut T) -> Option<Self> {
         Some(Self {
             ptr: NonNull::new(ptr)?,
@@ -34,6 +40,14 @@ impl<T: impls::RefCount> ComPtr<T> {
 
     pub fn ptr(&self) -> NonNull<T> {
         self.ptr
+    }
+
+    pub fn mut_ptr(&self) -> *mut T {
+        self.ptr.as_ptr()
+    }
+
+    pub fn const_ptr(&self) -> *const T {
+        self.ptr.as_ptr()
     }
 }
 

@@ -252,6 +252,19 @@ where
     pub fn to_com(self) -> ComPtr<T::Interface> {
         unsafe { core::mem::transmute(self) }
     }
+
+    pub fn as_com(&self) -> &ComPtr<T::Interface> {
+        unsafe { core::mem::transmute(self) }
+    }
+}
+
+impl<T: impls::RefCount> ComPtr<T> {
+    pub unsafe fn to_object<O: impls::Object<Interface = T>>(self) -> ObjectPtr<O> {
+        unsafe { core::mem::transmute(self) }
+    }
+    pub unsafe fn as_object<O: impls::Object<Interface = T>>(&self) -> &ObjectPtr<O> {
+        unsafe { core::mem::transmute(self) }
+    }
 }
 
 impl<T: impls::Object> Deref for ObjectPtr<T> {
