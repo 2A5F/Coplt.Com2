@@ -274,8 +274,9 @@ public class TemplateComInterface(InterfaceGenerator.Varying varying) : ATemplat
 
     protected override void DoGenAfterType()
     {
+        var access = GenBase.Target.Code.StartsWith("public") ? "public" : "internal";
         sb.AppendLine();
-        sb.AppendLine($"public static unsafe partial class {varying.name}Extensions");
+        sb.AppendLine($"{access} static unsafe partial class {varying.name}Extensions");
         sb.AppendLine($"{{");
 
         #region extension T

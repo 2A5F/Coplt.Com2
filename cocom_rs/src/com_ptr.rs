@@ -32,6 +32,11 @@ impl<T: impls::RefCount> ComPtr<T> {
         }
     }
 
+    pub unsafe fn new_clone(ptr: NonNull<T>) -> Self {
+        T::AddRef(ptr.as_ptr());
+        Self { ptr }
+    }
+
     pub unsafe fn create(ptr: *mut T) -> Option<Self> {
         Some(Self {
             ptr: NonNull::new(ptr)?,

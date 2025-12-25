@@ -294,7 +294,7 @@ public record RustOutput : AOutput
         root_sb.AppendLine("    pub use cocom::details::*;");
         root_sb.AppendLine("    use super::*;");
         root_sb.AppendLine();
-        root_sb.AppendLine("    struct VT<T, V, O>(core::marker::PhantomData<(T, V, O)>);");
+        root_sb.AppendLine("    struct VT<T, V, O, A>(core::marker::PhantomData<(T, V, O, A)>);");
 
         #region Interfaces
 
@@ -308,7 +308,7 @@ public record RustOutput : AOutput
                 var sb = new StringBuilder();
                 var name = a.Name;
                 var is_weak = IsWeak(a);
-                var ObjectBoxWeak = is_weak ? " + impls::ObjectBoxWeak" : "";
+                var ObjectBoxWeak = is_weak ? " + impls::ObjectBoxWeak<A>" : "";
                 var parent = a.Parent?.Name ?? "IUnknown";
                 sb.AppendLine();
                 sb.AppendLine($"    #[repr(C)]");
@@ -330,12 +330,12 @@ public record RustOutput : AOutput
                 }
                 sb.AppendLine($"    }}");
                 sb.AppendLine();
-                sb.AppendLine($"    impl<T: impls::{name} + impls::Object, O: impls::ObjectBox<Object = T>{ObjectBoxWeak}> VT<T, {name}, O>");
+                sb.AppendLine($"    impl<T: impls::{name} + impls::Object<A>, O: impls::ObjectBox<A, Object = T>{ObjectBoxWeak}, A: cocom::object::ObjectAllocator> VT<T, {name}, O, A>");
                 sb.AppendLine($"    where");
-                sb.AppendLine($"        T::Interface: details::QuIn<T, O>,");
+                sb.AppendLine($"        T::Interface: details::QuIn<T, O, A>,");
                 sb.AppendLine($"    {{");
                 sb.AppendLine($"        pub const VTBL: VitualTable_{name} = VitualTable_{name} {{");
-                sb.AppendLine($"            b: <{parent} as Vtbl<O>>::VTBL,");
+                sb.AppendLine($"            b: <{parent} as Vtbl<O, A>>::VTBL,");
                 foreach (var method in a.Methods)
                 {
                     sb.AppendLine($"            f_{method.Name}: Self::f_{method.Name},");
@@ -366,18 +366,18 @@ public record RustOutput : AOutput
                 }
                 sb.AppendLine($"    }}");
                 sb.AppendLine();
-                sb.AppendLine($"    impl<T: impls::{name} + impls::Object, O: impls::ObjectBox<Object = T>{ObjectBoxWeak}> Vtbl<O> for {name}");
+                sb.AppendLine($"    impl<T: impls::{name} + impls::Object<A>, O: impls::ObjectBox<A, Object = T>{ObjectBoxWeak}, A: cocom::object::ObjectAllocator> Vtbl<O, A> for {name}");
                 sb.AppendLine($"    where");
-                sb.AppendLine($"        T::Interface: details::QuIn<T, O>,");
+                sb.AppendLine($"        T::Interface: details::QuIn<T, O, A>,");
                 sb.AppendLine($"    {{");
-                sb.AppendLine($"        const VTBL: <{name} as Interface>::VitualTable = VT::<T, {name}, O>::VTBL;");
+                sb.AppendLine($"        const VTBL: <{name} as Interface>::VitualTable = VT::<T, {name}, O, A>::VTBL;");
                 sb.AppendLine();
                 sb.AppendLine($"        fn vtbl() -> &'static Self::VitualTable {{");
-                sb.AppendLine($"            &<Self as Vtbl<O>>::VTBL");
+                sb.AppendLine($"            &<Self as Vtbl<O, A>>::VTBL");
                 sb.AppendLine($"        }}");
                 sb.AppendLine($"    }}");
                 sb.AppendLine();
-                sb.AppendLine($"    impl<T: impls::{name} + impls::Object, O: impls::ObjectBox<Object = T>> QuIn<T, O> for {name} {{");
+                sb.AppendLine($"    impl<T: impls::{name} + impls::Object<A>, O: impls::ObjectBox<A, Object = T>, A: cocom::object::ObjectAllocator> QuIn<T, O, A> for {name} {{");
                 sb.AppendLine($"        unsafe fn QueryInterface(");
                 sb.AppendLine($"            this: *mut T,");
                 sb.AppendLine($"            guid: *const Guid,");
@@ -389,7 +389,7 @@ public record RustOutput : AOutput
                 sb.AppendLine($"                    O::AddRef(this as _);");
                 sb.AppendLine($"                    return HResultE::Ok.into();");
                 sb.AppendLine($"                }}");
-                sb.AppendLine($"                <{parent} as QuIn<T, O>>::QueryInterface(this, guid, out)");
+                sb.AppendLine($"                <{parent} as QuIn<T, O, A>>::QueryInterface(this, guid, out)");
                 sb.AppendLine($"            }}");
                 sb.AppendLine($"        }}");
                 sb.AppendLine($"    }}");

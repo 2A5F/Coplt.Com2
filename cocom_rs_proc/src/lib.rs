@@ -193,12 +193,19 @@ pub fn interface(attr: TokenStream, item: TokenStream) -> TokenStream {
 
 struct ObjectAttr {
     parent: Type,
+    allocator: Option<Type>,
 }
 
 impl Parse for ObjectAttr {
     fn parse(input: syn::parse::ParseStream) -> syn::Result<Self> {
         let parent: Type = input.parse()?;
-        Ok(Self { parent })
+        let allocator = if let Ok(_) = input.parse::<Token![,]>() {
+            Some(input.parse()?)
+        } else {
+            None
+        };
+
+        Ok(Self { parent, allocator })
     }
 }
 
@@ -238,11 +245,13 @@ pub fn object(attr: TokenStream, item: TokenStream) -> TokenStream {
     let attr = parse_macro_input!(attr as ObjectAttr);
     let item = parse_macro_input!(item as ItemStruct);
     let parent = &attr.parent;
+    let allocator = &attr.allocator;
     let ident = &item.ident;
+    let allocator = allocator.as_ref().map(|allocator| quote! {<#allocator>});
     quote! {
         #item
 
-        impl impls::Object for #ident {
+        impl impls::Object #allocator for #ident {
             type Interface = #parent;
         }
 

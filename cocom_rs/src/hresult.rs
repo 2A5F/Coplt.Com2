@@ -22,11 +22,47 @@ pub struct HResult {
 }
 
 impl HResult {
+    pub const fn ok() -> Self {
+        Self::new(0)
+    }
+    pub const fn not_impl() -> Self {
+        Self::new(0x80004001u32 as i32)
+    }
+    pub const fn no_interface() -> Self {
+        Self::new(0x80004002u32 as i32)
+    }
+    pub const fn pointer() -> Self {
+        Self::new(0x80004003u32 as i32)
+    }
+    pub const fn abort() -> Self {
+        Self::new(0x80004004u32 as i32)
+    }
+    pub const fn fail() -> Self {
+        Self::new(0x80004005u32 as i32)
+    }
+    pub const fn unexpected() -> Self {
+        Self::new(0x8000FFFFu32 as i32)
+    }
+    pub const fn access_denied() -> Self {
+        Self::new(0x80070005u32 as i32)
+    }
+    pub const fn handle() -> Self {
+        Self::new(0x80070006u32 as i32)
+    }
+    pub const fn out_of_memory() -> Self {
+        Self::new(0x8007000Eu32 as i32)
+    }
+    pub const fn invalid_arg() -> Self {
+        Self::new(0x80070057u32 as i32)
+    }
+}
+
+impl HResult {
     pub const fn new(value: i32) -> Self {
         Self { value }
     }
     pub const fn from_e(value: HResultE) -> Self {
-        unsafe { core::mem::transmute(value) }
+        Self::new(value as i32)
     }
 
     pub const fn e(self) -> HResultE {
