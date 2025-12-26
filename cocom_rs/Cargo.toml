@@ -7,3 +7,6 @@ version = "0.1.0"
 bitflags = "2"
 cocom_proc = {path = "../cocom_rs_proc"}
 concat-idents = "1"
+
+[build-dependencies]
+rustc_version = "*"

@@ -1,7 +1,7 @@
 use core::hash::Hash;
 use core::str::FromStr;
 
-#[repr(C)]
+#[repr(C, align(16))]
 #[derive(Debug, Clone, Copy, Eq)]
 pub struct Guid {
     a: u32,
@@ -77,6 +77,12 @@ impl Guid {
     pub const fn to_u128(self) -> u128 {
         unsafe { core::mem::transmute(self) }
     }
+
+    #[cfg(nightly)]
+    #[inline(always)]
+    pub const fn to_v128(self) -> core::simd::u8x16 {
+        unsafe { core::mem::transmute(self) }
+    }
 }
 
 impl Into<u128> for Guid {
@@ -103,10 +109,29 @@ impl From<i128> for Guid {
     }
 }
 
+#[cfg(not(nightly))]
 impl PartialEq for Guid {
     #[inline(always)]
     fn eq(&self, other: &Self) -> bool {
         self.to_u128() == other.to_u128()
+    }
+
+    #[inline(always)]
+    fn ne(&self, other: &Self) -> bool {
+        self.to_u128() != other.to_u128()
+    }
+}
+
+#[cfg(nightly)]
+impl PartialEq for Guid {
+    #[inline(always)]
+    fn eq(&self, other: &Self) -> bool {
+        self.to_v128() == other.to_v128()
+    }
+
+    #[inline(always)]
+    fn ne(&self, other: &Self) -> bool {
+        self.to_v128() != other.to_v128()
     }
 }
 

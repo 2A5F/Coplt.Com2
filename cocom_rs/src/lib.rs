@@ -2,6 +2,7 @@
 #![allow(non_snake_case)]
 #![allow(non_camel_case_types)]
 #![allow(unused)]
+#![cfg_attr(nightly, feature(portable_simd))]
 
 extern crate alloc;
 
