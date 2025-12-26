@@ -68,10 +68,10 @@ pub mod details {
 
     struct VT<T, V, O>(core::marker::PhantomData<(T, V, O)>);
 
-    pub trait QuIn<T, O>: Interface {
+    pub trait QuIn<I, T, O>: Interface {
         unsafe fn QueryInterface(
             this: *mut T,
-            guid: *const Guid,
+            guid: Guid,
             out: *mut *mut core::ffi::c_void,
         ) -> HResult;
     }
@@ -90,7 +90,7 @@ pub mod details {
 
     impl<T: impls::IUnknown + impls::Object, O: ObjectBox<Object = T>> VT<T, IUnknown, O>
     where
-        T::Interface: details::QuIn<T, O>,
+        T::Interface: details::QuIn<T::Interface, T, O>,
     {
         pub const VTBL: VitualTable_IUnknown = VitualTable_IUnknown {
             f_QueryInterface: Self::f_QueryInterface,
@@ -103,7 +103,7 @@ pub mod details {
             guid: *const Guid,
             out: *mut *mut ::core::ffi::c_void,
         ) -> HResult {
-            unsafe { T::Interface::QueryInterface(this as _, guid, out) }
+            unsafe { T::Interface::QueryInterface(this as _, *guid, out) }
         }
         unsafe extern "C" fn f_AddRef(this: *const IUnknown) -> u32 {
             unsafe { O::AddRef(this as _) }
@@ -115,7 +115,7 @@ pub mod details {
 
     impl<T: impls::IUnknown + impls::Object, O: ObjectBox<Object = T>> Vtbl<O> for IUnknown
     where
-        T::Interface: details::QuIn<T, O>,
+        T::Interface: details::QuIn<T::Interface, T, O>,
     {
         const VTBL: <IUnknown as Interface>::VitualTable = VT::<T, IUnknown, O>::VTBL;
 
@@ -136,7 +136,7 @@ pub mod details {
 
     impl<T: impls::IWeak + impls::Object, O: ObjectBox<Object = T> + ObjectBoxWeak> VT<T, IWeak, O>
     where
-        T::Interface: details::QuIn<T, O>,
+        T::Interface: details::QuIn<T::Interface, T, O>,
     {
         pub const VTBL: VitualTable_IWeak = VitualTable_IWeak {
             b: <IUnknown as Vtbl<O>>::VTBL,
@@ -158,7 +158,7 @@ pub mod details {
 
     impl<T: impls::IWeak + impls::Object, O: ObjectBox<Object = T> + ObjectBoxWeak> Vtbl<O> for IWeak
     where
-        T::Interface: details::QuIn<T, O>,
+        T::Interface: details::QuIn<T::Interface, T, O>,
     {
         const VTBL: <IWeak as Interface>::VitualTable = VT::<T, IWeak, O>::VTBL;
 
@@ -167,14 +167,18 @@ pub mod details {
         }
     }
 
-    impl<T: impls::IUnknown + impls::Object, O: ObjectBox<Object = T>> QuIn<T, O> for IUnknown {
+    impl<T: impls::IUnknown + impls::Object, O: ObjectBox<Object = T>> QuIn<IUnknown, T, O>
+        for IUnknown
+    {
+        #[inline(always)]
         unsafe fn QueryInterface(
             this: *mut T,
-            guid: *const Guid,
+            guid: Guid,
             out: *mut *mut core::ffi::c_void,
         ) -> HResult {
             unsafe {
-                if *guid == IUnknown::GUID {
+                static GUID: Guid = IUnknown::GUID;
+                if guid == GUID {
                     *out = this as _;
                     O::AddRef(this as _);
                     return HResultE::Ok.into();
@@ -184,19 +188,21 @@ pub mod details {
         }
     }
 
-    impl<T: impls::IWeak + impls::Object, O: ObjectBox<Object = T>> QuIn<T, O> for IWeak {
+    impl<T: impls::IWeak + impls::Object, O: ObjectBox<Object = T>> QuIn<IWeak, T, O> for IWeak {
+        #[inline(always)]
         unsafe fn QueryInterface(
             this: *mut T,
-            guid: *const Guid,
+            guid: Guid,
             out: *mut *mut core::ffi::c_void,
         ) -> HResult {
             unsafe {
-                if *guid == IWeak::GUID {
+                static GUID: Guid = IWeak::GUID;
+                if guid == GUID {
                     *out = this as _;
                     O::AddRef(this as _);
                     return HResultE::Ok.into();
                 }
-                <IUnknown as QuIn<T, O>>::QueryInterface(this, guid, out)
+                <IUnknown as QuIn<IUnknown, T, O>>::QueryInterface(this, guid, out)
             }
         }
     }
@@ -373,14 +379,20 @@ pub mod impls {
 
         unsafe fn GetObject(this: *mut <Self::Object as Object>::Interface) -> *mut Self::Object;
 
+        #[inline(always)]
         unsafe fn AddRef(this: *mut <Self::Object as Object>::Interface) -> u32;
+        #[inline(always)]
         unsafe fn Release(this: *mut <Self::Object as Object>::Interface) -> u32;
     }
 
     pub trait ObjectBoxWeak: ObjectBox {
+        #[inline(always)]
         unsafe fn AddRefWeak(this: *mut <Self::Object as Object>::Interface) -> u32;
+        #[inline(always)]
         unsafe fn ReleaseWeak(this: *mut <Self::Object as Object>::Interface) -> u32;
+        #[inline(always)]
         unsafe fn TryUpgrade(this: *mut <Self::Object as Object>::Interface) -> bool;
+        #[inline(always)]
         unsafe fn TryDowngrade(this: *mut <Self::Object as Object>::Interface) -> bool;
     }
 
@@ -393,6 +405,7 @@ pub mod impls {
     }
 
     pub trait QueryInterface {
+        #[inline(always)]
         fn QueryInterface(
             this: *const Self,
             guid: *const Guid,

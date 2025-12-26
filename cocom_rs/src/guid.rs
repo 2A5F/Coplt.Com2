@@ -68,10 +68,12 @@ impl Guid {
 }
 
 impl Guid {
+    #[inline(always)]
     pub const fn from_u128(value: u128) -> Self {
         unsafe { core::mem::transmute(value) }
     }
 
+    #[inline(always)]
     pub const fn to_u128(self) -> u128 {
         unsafe { core::mem::transmute(self) }
     }
@@ -102,12 +104,14 @@ impl From<i128> for Guid {
 }
 
 impl PartialEq for Guid {
+    #[inline(always)]
     fn eq(&self, other: &Self) -> bool {
         self.to_u128() == other.to_u128()
     }
 }
 
 impl Hash for Guid {
+    #[inline(always)]
     fn hash<H: core::hash::Hasher>(&self, state: &mut H) {
         self.to_u128().hash(state)
     }

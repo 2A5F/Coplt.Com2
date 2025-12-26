@@ -213,6 +213,12 @@ impl<T: impls::Object> Object<T> {
     }
 }
 
+impl<T: impls::Object> Object<T> {
+    pub fn allocator(&self) -> &T::Allocator {
+        unsafe { &self.allocator }
+    }
+}
+
 impl<T: impls::Object<Allocator = DefaultObjectAllocator>> Object<T>
 where
     T::Interface: details::Vtbl<Self>,
@@ -300,6 +306,7 @@ where
 impl<T: impls::Object> impls::ObjectBox for Object<T> {
     type Object = T;
 
+    #[inline(always)]
     unsafe fn GetObject(
         this: *mut <Self::Object as impls::Object>::Interface,
     ) -> *mut Self::Object {
@@ -309,6 +316,7 @@ impl<T: impls::Object> impls::ObjectBox for Object<T> {
         }
     }
 
+    #[inline(always)]
     unsafe fn AddRef(this: *mut T::Interface) -> u32 {
         unsafe {
             let this = this as *mut Self;
@@ -316,6 +324,7 @@ impl<T: impls::Object> impls::ObjectBox for Object<T> {
         }
     }
 
+    #[inline(always)]
     unsafe fn Release(this: *mut T::Interface) -> u32 {
         unsafe {
             let this = this as *mut Self;
@@ -329,10 +338,12 @@ impl<T: impls::Object> impls::ObjectBox for Object<T> {
 }
 
 impl<T: impls::Object> impls::RefCount for Object<T> {
+    #[inline(always)]
     fn AddRef(this: *const Self) -> u32 {
         unsafe { (*this).strong.fetch_add(1, Ordering::Relaxed) }
     }
 
+    #[inline(always)]
     fn Release(this: *const Self) -> u32 {
         unsafe {
             let this = this as *mut Self;
@@ -460,14 +471,17 @@ impl<T: impls::Object> WeakObject<T> {
     }
 }
 impl<T: impls::Object> WeakObject<T> {
+    #[inline(always)]
     pub unsafe fn GetStrongCount(this: *mut Self) -> u32 {
         unsafe { (*this).strong.load(Ordering::Acquire) }
     }
 
+    #[inline(always)]
     pub unsafe fn GetWeakCount(this: *mut Self) -> u32 {
         unsafe { (*this).weak.load(Ordering::Acquire) }
     }
 
+    #[inline(always)]
     pub unsafe fn FromValue(value: *mut T) -> *mut Self {
         unsafe {
             let offset =
@@ -476,6 +490,12 @@ impl<T: impls::Object> WeakObject<T> {
             let ptr = ptr.sub(offset);
             ptr as _
         }
+    }
+}
+
+impl<T: impls::Object> WeakObject<T> {
+    pub fn allocator(&self) -> &T::Allocator {
+        unsafe { &self.allocator }
     }
 }
 
@@ -603,7 +623,7 @@ impl<T: impls::Object> impls::ObjectBox for WeakObject<T> {
 
 impl<T: impls::Object> impls::ObjectBoxWeak for WeakObject<T>
 where
-    T::Interface: details::QuIn<T, Self>,
+    T::Interface: details::QuIn<T::Interface, T, Self>,
 {
     unsafe fn AddRefWeak(this: *mut T::Interface) -> u32 {
         unsafe {
