@@ -5,6 +5,7 @@
         <EnforceExtendedAnalyzerRules>true</EnforceExtendedAnalyzerRules>
         <CopyLocalLockFileAssemblies>true</CopyLocalLockFileAssemblies>
         <IsRoslynComponent>true</IsRoslynComponent>
+        <IsAotCompatible>false</IsAotCompatible>
     </PropertyGroup>
 
     <ItemGroup>

@@ -14,8 +14,7 @@
         "resolved": "5.5.1",
         "contentHash": "J9C/Aqi6PlPWu0mZQpxPmH7nhxTCDuTgaEiTRKdqgvWu/r07gEe8f6tx1JOqzW5xjIBKQyZst5/HfHvYaRvvfA==",
         "dependencies": {
-          "AsmResolver.PE": "5.5.1",
-          "System.Text.Json": "6.0.8"
+          "AsmResolver.PE": "5.5.1"
         }
       },
       "Microsoft.DotNet.ILCompiler": {
@@ -35,12 +34,6 @@
         "requested": "[2.0.0-rc.1.25451.107, )",
         "resolved": "2.0.0-rc.1.25451.107",
         "contentHash": "j+0Yg2TZ5rwbGTRArdF9w993dGWCPRbD+lg3S0D6MLckrKQ3J70s52TlbxKlISsoXUP/X+e6uPocbkKjP3wSag=="
-      },
-      "System.Text.Json": {
-        "type": "Direct",
-        "requested": "[10.0.0, )",
-        "resolved": "10.0.0",
-        "contentHash": "1Dpjwq9peG/Wt5BNbrzIhTpclfOSqBWZsUO28vVr59yQlkvL5jLBWfpfzRmJ1OY+6DciaY0DUcltyzs4fuZHjw=="
       },
       "AsmResolver.PE": {
         "type": "Transitive",

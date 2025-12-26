@@ -18,7 +18,6 @@
       <PackageReference Include="AsmResolver" />
       <PackageReference Include="AsmResolver.DotNet" />
       <PackageReference Include="System.CommandLine" />
-      <PackageReference Include="System.Text.Json" />
     </ItemGroup>
 
     <ItemGroup>
