@@ -59,127 +59,121 @@ pub trait MakeObjectWeak {
     fn make_object_weak(self) -> Self::ObjOutput;
 }
 
-pub trait MakeObjectWith<A: object::ObjectAllocator> {
+pub trait MakeObjectWith {
+    type Allocator;
     type ComOutput;
     type ObjOutput;
 
-    fn make_com_with(self, allocator: A) -> Self::ComOutput;
-    fn make_object_with(self, allocator: A) -> Self::ObjOutput;
+    fn make_com_with(self, allocator: Self::Allocator) -> Self::ComOutput;
+    fn make_object_with(self, allocator: Self::Allocator) -> Self::ObjOutput;
 }
 
-pub trait MakeObjectWeakWith<A: object::ObjectAllocator> {
+pub trait MakeObjectWeakWith {
+    type Allocator;
     type ComOutput;
     type ObjOutput;
 
-    fn make_com_weak_with(self, allocator: A) -> Self::ComOutput;
-    fn make_object_weak_with(self, allocator: A) -> Self::ObjOutput;
+    fn make_com_weak_with(self, allocator: Self::Allocator) -> Self::ComOutput;
+    fn make_object_weak_with(self, allocator: Self::Allocator) -> Self::ObjOutput;
 }
 
-impl<T: impls::Object<DefaultObjectAllocator>> MakeObject for T
+impl<T: impls::Object<Allocator = DefaultObjectAllocator>> MakeObject for T
 where
     T::Interface: RefCount,
-    Object<T, DefaultObjectAllocator>:
-        impls::ObjectBox<DefaultObjectAllocator, Object = T> + impls::ObjectBoxNew,
+    Object<T>: impls::ObjectBox<Object = T> + impls::ObjectBoxNew,
 {
     type ComOutput = ComPtr<T::Interface>;
-    type ObjOutput = ObjectPtr<T, DefaultObjectAllocator>;
+    type ObjOutput = ObjectPtr<T>;
 
     fn make_object(self) -> Self::ObjOutput {
         unsafe {
-            ObjectPtr(ComPtr::new(NonNull::new_unchecked(<Object<
-                T,
-                DefaultObjectAllocator,
-            > as impls::ObjectBoxNew>::make_with(
-                self, ()
-            ))))
+            ObjectPtr(ComPtr::new(NonNull::new_unchecked(
+                <Object<T> as impls::ObjectBoxNew>::make_with(self, ()),
+            )))
         }
     }
 
     fn make_com(self) -> Self::ComOutput {
         unsafe {
             ComPtr::new(NonNull::new_unchecked(
-                <Object<T, DefaultObjectAllocator> as impls::ObjectBoxNew>::new_with(self, ()),
+                <Object<T> as impls::ObjectBoxNew>::new_with(self, ()),
             ))
         }
     }
 }
 
-impl<T: impls::Object<A>, A: object::ObjectAllocator> MakeObjectWith<A> for T
+impl<T: impls::Object> MakeObjectWith for T
 where
     T::Interface: RefCount,
-    Object<T, A>: impls::ObjectBox<A, Object = T> + impls::ObjectBoxNew<A>,
+    Object<T>: impls::ObjectBox<Object = T> + impls::ObjectBoxNew,
 {
+    type Allocator = T::Allocator;
     type ComOutput = ComPtr<T::Interface>;
-    type ObjOutput = ObjectPtr<T, A>;
+    type ObjOutput = ObjectPtr<T>;
 
-    fn make_object_with(self, allocator: A) -> Self::ObjOutput {
+    fn make_object_with(self, allocator: T::Allocator) -> Self::ObjOutput {
         unsafe {
             ObjectPtr(ComPtr::new(NonNull::new_unchecked(
-                <Object<T, A> as impls::ObjectBoxNew<A>>::make_with(self, allocator),
+                <Object<T> as impls::ObjectBoxNew>::make_with(self, allocator),
             )))
         }
     }
 
-    fn make_com_with(self, allocator: A) -> Self::ComOutput {
+    fn make_com_with(self, allocator: T::Allocator) -> Self::ComOutput {
         unsafe {
             ComPtr::new(NonNull::new_unchecked(
-                <Object<T, A> as impls::ObjectBoxNew<A>>::new_with(self, allocator),
+                <Object<T> as impls::ObjectBoxNew>::new_with(self, allocator),
             ))
         }
     }
 }
 
-impl<T: impls::Object> MakeObjectWeak for T
+impl<T: impls::Object<Allocator = DefaultObjectAllocator>> MakeObjectWeak for T
 where
     T::Interface: RefCount + WeakRefCount,
-    WeakObject<T, DefaultObjectAllocator>: impls::ObjectBox<Object = T> + impls::ObjectBoxNew,
+    WeakObject<T>: impls::ObjectBox<Object = T> + impls::ObjectBoxNew,
 {
     type ComOutput = ComPtr<T::Interface>;
-    type ObjOutput = WeakObjectPtr<T, DefaultObjectAllocator>;
+    type ObjOutput = WeakObjectPtr<T>;
 
     fn make_com_weak(self) -> Self::ComOutput {
         unsafe {
-            ComPtr::new(NonNull::new_unchecked(<WeakObject<
-                T,
-                DefaultObjectAllocator,
-            > as impls::ObjectBoxNew>::new_with(
-                self, ()
-            )))
+            ComPtr::new(NonNull::new_unchecked(
+                <WeakObject<T> as impls::ObjectBoxNew>::new_with(self, ()),
+            ))
         }
     }
 
     fn make_object_weak(self) -> Self::ObjOutput {
         unsafe {
-            WeakObjectPtr(ComPtr::new(NonNull::new_unchecked(<WeakObject<
-                T,
-                DefaultObjectAllocator,
-            > as impls::ObjectBoxNew>::make_with(
-                self, ()
-            ))))
+            WeakObjectPtr(ComPtr::new(NonNull::new_unchecked(
+                <WeakObject<T> as impls::ObjectBoxNew>::make_with(self, ()),
+            )))
         }
     }
 }
 
-impl<T: impls::Object<A>, A: object::ObjectAllocator> MakeObjectWeakWith<A> for T
+impl<T: impls::Object> MakeObjectWeakWith for T
 where
     T::Interface: RefCount + WeakRefCount,
-    WeakObject<T, A>: impls::ObjectBox<A, Object = T> + impls::ObjectBoxNew<A>,
+    WeakObject<T>: impls::ObjectBox<Object = T> + impls::ObjectBoxNew,
 {
+    type Allocator = T::Allocator;
     type ComOutput = ComPtr<T::Interface>;
-    type ObjOutput = WeakObjectPtr<T, A>;
+    type ObjOutput = WeakObjectPtr<T>;
 
-    fn make_com_weak_with(self, allocator: A) -> Self::ComOutput {
+    fn make_com_weak_with(self, allocator: T::Allocator) -> Self::ComOutput {
         unsafe {
             ComPtr::new(NonNull::new_unchecked(
-                <WeakObject<T, A> as impls::ObjectBoxNew<A>>::new_with(self, allocator),
+                <WeakObject<T> as impls::ObjectBoxNew>::new_with(self, allocator),
             ))
         }
     }
 
-    fn make_object_weak_with(self, allocator: A) -> Self::ObjOutput {
+    fn make_object_weak_with(self, allocator: T::Allocator) -> Self::ObjOutput {
         unsafe {
             WeakObjectPtr(ComPtr::new(NonNull::new_unchecked(
-                <WeakObject<T, A> as impls::ObjectBoxNew<A>>::make_with(self, allocator),
+                <WeakObject<T> as impls::ObjectBoxNew>::make_with(self, allocator),
             )))
         }
     }
@@ -187,15 +181,14 @@ where
 
 #[repr(C)]
 #[derive(Debug)]
-pub struct Object<T: impls::Object<A>, A: object::ObjectAllocator = object::DefaultObjectAllocator>
-{
+pub struct Object<T: impls::Object> {
     base: T::Interface,
-    allocator: A,
+    allocator: T::Allocator,
     strong: AtomicU32,
     val: ManuallyDrop<T>,
 }
 
-impl<T: impls::Object<A>, A: object::ObjectAllocator> Object<T, A> {
+impl<T: impls::Object> Object<T> {
     unsafe fn Drop(this: *mut Self) {
         unsafe {
             ManuallyDrop::drop(&mut (*this).val);
@@ -205,7 +198,7 @@ impl<T: impls::Object<A>, A: object::ObjectAllocator> Object<T, A> {
     }
 }
 
-impl<T: impls::Object<A>, A: object::ObjectAllocator> Object<T, A> {
+impl<T: impls::Object> Object<T> {
     pub unsafe fn GetStrongCount(this: *mut Self) -> u32 {
         unsafe { (*this).strong.load(Ordering::Acquire) }
     }
@@ -220,9 +213,9 @@ impl<T: impls::Object<A>, A: object::ObjectAllocator> Object<T, A> {
     }
 }
 
-impl<T: impls::Object<DefaultObjectAllocator>> Object<T, DefaultObjectAllocator>
+impl<T: impls::Object<Allocator = DefaultObjectAllocator>> Object<T>
 where
-    T::Interface: details::Vtbl<Self, DefaultObjectAllocator>,
+    T::Interface: details::Vtbl<Self>,
 {
     pub fn new(val: T) -> *mut T::Interface {
         Self::make(val) as _
@@ -232,10 +225,7 @@ where
         unsafe {
             let b = ().alloc(Layout::new::<Self>()) as *mut Self;
             b.write(Self {
-                base: T::Interface::new(<T::Interface as details::Vtbl<
-                    Self,
-                    DefaultObjectAllocator,
-                >>::vtbl()),
+                base: T::Interface::new(<T::Interface as details::Vtbl<Self>>::vtbl()),
                 allocator: (),
                 strong: AtomicU32::new(1),
                 val: ManuallyDrop::new(val),
@@ -247,10 +237,9 @@ where
     pub unsafe fn inplace(init: impl FnOnce(*mut T)) -> ObjectPtr<T> {
         unsafe {
             let b = ().alloc(Layout::new::<Self>()) as *mut Self;
-            pmp!(b; .base).write(T::Interface::new(<T::Interface as details::Vtbl<
-                Self,
-                DefaultObjectAllocator,
-            >>::vtbl()));
+            pmp!(b; .base).write(T::Interface::new(
+                <T::Interface as details::Vtbl<Self>>::vtbl(),
+            ));
             pmp!(b; .strong).write(AtomicU32::new(1));
             init(pmp!(b; .val) as *mut _);
             ObjectPtr(ComPtr::new(NonNull::new_unchecked(b)))
@@ -258,19 +247,19 @@ where
     }
 }
 
-impl<T: impls::Object<A>, A: object::ObjectAllocator> Object<T, A>
+impl<T: impls::Object> Object<T>
 where
-    T::Interface: details::Vtbl<Self, A>,
+    T::Interface: details::Vtbl<Self>,
 {
-    pub fn new_with(val: T, allocator: A) -> *mut T::Interface {
+    pub fn new_with(val: T, allocator: T::Allocator) -> *mut T::Interface {
         Self::make_with(val, allocator) as _
     }
 
-    pub fn make_with(val: T, allocator: A) -> *mut Self {
+    pub fn make_with(val: T, allocator: T::Allocator) -> *mut Self {
         unsafe {
             let b = allocator.alloc(Layout::new::<Self>()) as *mut Self;
             b.write(Self {
-                base: T::Interface::new(<T::Interface as details::Vtbl<Self, A>>::vtbl()),
+                base: T::Interface::new(<T::Interface as details::Vtbl<Self>>::vtbl()),
                 allocator: allocator,
                 strong: AtomicU32::new(1),
                 val: ManuallyDrop::new(val),
@@ -279,14 +268,13 @@ where
         }
     }
 
-    pub unsafe fn inplace_with(allocator: A, init: impl FnOnce(*mut T)) -> ObjectPtr<T, A> {
+    pub unsafe fn inplace_with(allocator: T::Allocator, init: impl FnOnce(*mut T)) -> ObjectPtr<T> {
         unsafe {
             let b = allocator.alloc(Layout::new::<Self>()) as *mut Self;
-            pmp!(b; .base).write(T::Interface::new(<T::Interface as details::Vtbl<
-                Self,
-                A,
-            >>::vtbl()));
-            if size_of::<A>() > 0 {
+            pmp!(b; .base).write(T::Interface::new(
+                <T::Interface as details::Vtbl<Self>>::vtbl(),
+            ));
+            if size_of::<T::Allocator>() > 0 {
                 pmp!(b; .allocator).write(allocator);
             }
             pmp!(b; .strong).write(AtomicU32::new(1));
@@ -296,24 +284,24 @@ where
     }
 }
 
-impl<T: impls::Object<A>, A: object::ObjectAllocator> impls::ObjectBoxNew<A> for Object<T, A>
+impl<T: impls::Object> impls::ObjectBoxNew for Object<T>
 where
-    T::Interface: details::Vtbl<Self, A>,
+    T::Interface: details::Vtbl<Self>,
 {
-    fn new_with(val: T, allocator: A) -> *mut T::Interface {
+    fn new_with(val: T, allocator: T::Allocator) -> *mut T::Interface {
         Self::new_with(val, allocator)
     }
 
-    fn make_with(val: Self::Object, allocator: A) -> *mut Self {
+    fn make_with(val: Self::Object, allocator: T::Allocator) -> *mut Self {
         Self::make_with(val, allocator)
     }
 }
 
-impl<T: impls::Object<A>, A: object::ObjectAllocator> impls::ObjectBox<A> for Object<T, A> {
+impl<T: impls::Object> impls::ObjectBox for Object<T> {
     type Object = T;
 
     unsafe fn GetObject(
-        this: *mut <Self::Object as impls::Object<A>>::Interface,
+        this: *mut <Self::Object as impls::Object>::Interface,
     ) -> *mut Self::Object {
         unsafe {
             let this = this as *mut Self;
@@ -340,7 +328,7 @@ impl<T: impls::Object<A>, A: object::ObjectAllocator> impls::ObjectBox<A> for Ob
     }
 }
 
-impl<T: impls::Object<A>, A: object::ObjectAllocator> impls::RefCount for Object<T, A> {
+impl<T: impls::Object> impls::RefCount for Object<T> {
     fn AddRef(this: *const Self) -> u32 {
         unsafe { (*this).strong.fetch_add(1, Ordering::Relaxed) }
     }
@@ -357,7 +345,7 @@ impl<T: impls::Object<A>, A: object::ObjectAllocator> impls::RefCount for Object
     }
 }
 
-impl<T: impls::Object<A>, A: object::ObjectAllocator> Deref for Object<T, A> {
+impl<T: impls::Object> Deref for Object<T> {
     type Target = T;
 
     fn deref(&self) -> &Self::Target {
@@ -365,27 +353,27 @@ impl<T: impls::Object<A>, A: object::ObjectAllocator> Deref for Object<T, A> {
     }
 }
 
-impl<T: impls::Object<A> + PartialEq, A: object::ObjectAllocator> PartialEq for Object<T, A> {
+impl<T: impls::Object + PartialEq> PartialEq for Object<T> {
     fn eq(&self, other: &Self) -> bool {
         (**self).eq(&**other)
     }
 }
 
-impl<T: impls::Object<A> + Eq, A: object::ObjectAllocator> Eq for Object<T, A> {}
+impl<T: impls::Object + Eq> Eq for Object<T> {}
 
-impl<T: impls::Object<A> + PartialOrd, A: object::ObjectAllocator> PartialOrd for Object<T, A> {
+impl<T: impls::Object + PartialOrd> PartialOrd for Object<T> {
     fn partial_cmp(&self, other: &Self) -> Option<core::cmp::Ordering> {
         (**self).partial_cmp(&**other)
     }
 }
 
-impl<T: impls::Object<A> + Ord, A: object::ObjectAllocator> Ord for Object<T, A> {
+impl<T: impls::Object + Ord> Ord for Object<T> {
     fn cmp(&self, other: &Self) -> core::cmp::Ordering {
         (**self).cmp(&**other)
     }
 }
 
-impl<T: impls::Object<A> + Hash, A: object::ObjectAllocator> Hash for Object<T, A> {
+impl<T: impls::Object + Hash> Hash for Object<T> {
     fn hash<H: core::hash::Hasher>(&self, state: &mut H) {
         (**self).hash(state);
     }
@@ -393,11 +381,9 @@ impl<T: impls::Object<A> + Hash, A: object::ObjectAllocator> Hash for Object<T, 
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(transparent)]
-pub struct ObjectPtr<T: impls::Object<A>, A: object::ObjectAllocator = DefaultObjectAllocator>(
-    ComPtr<Object<T, A>>,
-);
+pub struct ObjectPtr<T: impls::Object>(ComPtr<Object<T>>);
 
-impl<T: impls::Object<A>, A: object::ObjectAllocator> ObjectPtr<T, A>
+impl<T: impls::Object> ObjectPtr<T>
 where
     T::Interface: RefCount,
 {
@@ -423,7 +409,7 @@ impl<T: impls::RefCount> ComPtr<T> {
     }
 }
 
-impl<T: impls::Object<A>, A: object::ObjectAllocator> Deref for ObjectPtr<T, A> {
+impl<T: impls::Object> Deref for ObjectPtr<T> {
     type Target = T;
 
     fn deref(&self) -> &Self::Target {
@@ -431,7 +417,7 @@ impl<T: impls::Object<A>, A: object::ObjectAllocator> Deref for ObjectPtr<T, A> 
     }
 }
 
-impl<T: impls::Object<A>, A: object::ObjectAllocator> AsRef<T::Interface> for ObjectPtr<T, A> {
+impl<T: impls::Object> AsRef<T::Interface> for ObjectPtr<T> {
     fn as_ref(&self) -> &T::Interface {
         &self.0.base
     }
@@ -439,18 +425,15 @@ impl<T: impls::Object<A>, A: object::ObjectAllocator> AsRef<T::Interface> for Ob
 
 #[repr(C)]
 #[derive(Debug)]
-pub struct WeakObject<
-    T: impls::Object<A>,
-    A: object::ObjectAllocator = object::DefaultObjectAllocator,
-> {
+pub struct WeakObject<T: impls::Object> {
     base: T::Interface,
-    allocator: A,
+    allocator: T::Allocator,
     strong: AtomicU32,
     weak: AtomicU32,
     val: ManuallyDrop<T>,
 }
 
-impl<T: impls::Object<A>, A: object::ObjectAllocator> WeakObject<T, A> {
+impl<T: impls::Object> WeakObject<T> {
     #[inline(never)]
     unsafe fn DropSlow(this: *mut Self) {
         unsafe {
@@ -476,7 +459,7 @@ impl<T: impls::Object<A>, A: object::ObjectAllocator> WeakObject<T, A> {
         }
     }
 }
-impl<T: impls::Object<A>, A: object::ObjectAllocator> WeakObject<T, A> {
+impl<T: impls::Object> WeakObject<T> {
     pub unsafe fn GetStrongCount(this: *mut Self) -> u32 {
         unsafe { (*this).strong.load(Ordering::Acquire) }
     }
@@ -496,9 +479,9 @@ impl<T: impls::Object<A>, A: object::ObjectAllocator> WeakObject<T, A> {
     }
 }
 
-impl<T: impls::Object<DefaultObjectAllocator>> WeakObject<T, DefaultObjectAllocator>
+impl<T: impls::Object<Allocator = DefaultObjectAllocator>> WeakObject<T>
 where
-    T::Interface: details::Vtbl<Self, DefaultObjectAllocator>,
+    T::Interface: details::Vtbl<Self>,
 {
     pub fn new(val: T) -> *mut T::Interface {
         Self::make(val) as _
@@ -508,10 +491,7 @@ where
         unsafe {
             let b = ().alloc(Layout::new::<Self>()) as *mut Self;
             b.write(Self {
-                base: T::Interface::new(<T::Interface as details::Vtbl<
-                    Self,
-                    DefaultObjectAllocator,
-                >>::vtbl()),
+                base: T::Interface::new(<T::Interface as details::Vtbl<Self>>::vtbl()),
                 allocator: (),
                 strong: AtomicU32::new(1),
                 weak: AtomicU32::new(1),
@@ -521,13 +501,12 @@ where
         }
     }
 
-    pub unsafe fn inplace(init: impl FnOnce(*mut T)) -> WeakObjectPtr<T, DefaultObjectAllocator> {
+    pub unsafe fn inplace(init: impl FnOnce(*mut T)) -> WeakObjectPtr<T> {
         unsafe {
             let b = ().alloc(Layout::new::<Self>()) as *mut Self;
-            pmp!(b; .base).write(T::Interface::new(<T::Interface as details::Vtbl<
-                Self,
-                DefaultObjectAllocator,
-            >>::vtbl()));
+            pmp!(b; .base).write(T::Interface::new(
+                <T::Interface as details::Vtbl<Self>>::vtbl(),
+            ));
             pmp!(b; .strong).write(AtomicU32::new(1));
             pmp!(b; .weak).write(AtomicU32::new(1));
             init(pmp!(b; .val) as *mut _);
@@ -536,19 +515,19 @@ where
     }
 }
 
-impl<T: impls::Object<A>, A: object::ObjectAllocator> WeakObject<T, A>
+impl<T: impls::Object> WeakObject<T>
 where
-    T::Interface: details::Vtbl<Self, A>,
+    T::Interface: details::Vtbl<Self>,
 {
-    pub fn new_with(val: T, allocator: A) -> *mut T::Interface {
+    pub fn new_with(val: T, allocator: T::Allocator) -> *mut T::Interface {
         Self::make_with(val, allocator) as _
     }
 
-    pub fn make_with(val: T, allocator: A) -> *mut Self {
+    pub fn make_with(val: T, allocator: T::Allocator) -> *mut Self {
         unsafe {
             let b = allocator.alloc(Layout::new::<Self>()) as *mut Self;
             b.write(Self {
-                base: T::Interface::new(<T::Interface as details::Vtbl<Self, A>>::vtbl()),
+                base: T::Interface::new(<T::Interface as details::Vtbl<Self>>::vtbl()),
                 allocator,
                 strong: AtomicU32::new(1),
                 weak: AtomicU32::new(1),
@@ -558,14 +537,16 @@ where
         }
     }
 
-    pub unsafe fn inplace_with(allocator: A, init: impl FnOnce(*mut T)) -> WeakObjectPtr<T, A> {
+    pub unsafe fn inplace_with(
+        allocator: T::Allocator,
+        init: impl FnOnce(*mut T),
+    ) -> WeakObjectPtr<T> {
         unsafe {
             let b = allocator.alloc(Layout::new::<Self>()) as *mut Self;
-            pmp!(b; .base).write(T::Interface::new(<T::Interface as details::Vtbl<
-                Self,
-                A,
-            >>::vtbl()));
-            if size_of::<A>() > 0 {
+            pmp!(b; .base).write(T::Interface::new(
+                <T::Interface as details::Vtbl<Self>>::vtbl(),
+            ));
+            if size_of::<T::Allocator>() > 0 {
                 pmp!(b; .allocator).write(allocator);
             }
             pmp!(b; .strong).write(AtomicU32::new(1));
@@ -576,24 +557,24 @@ where
     }
 }
 
-impl<T: impls::Object<A>, A: object::ObjectAllocator> impls::ObjectBoxNew<A> for WeakObject<T, A>
+impl<T: impls::Object> impls::ObjectBoxNew for WeakObject<T>
 where
-    T::Interface: details::Vtbl<Self, A>,
+    T::Interface: details::Vtbl<Self>,
 {
-    fn new_with(val: T, allocator: A) -> *mut T::Interface {
+    fn new_with(val: T, allocator: T::Allocator) -> *mut T::Interface {
         Self::new_with(val, allocator)
     }
 
-    fn make_with(val: Self::Object, allocator: A) -> *mut Self {
+    fn make_with(val: Self::Object, allocator: T::Allocator) -> *mut Self {
         Self::make_with(val, allocator)
     }
 }
 
-impl<T: impls::Object<A>, A: object::ObjectAllocator> impls::ObjectBox<A> for WeakObject<T, A> {
+impl<T: impls::Object> impls::ObjectBox for WeakObject<T> {
     type Object = T;
 
     unsafe fn GetObject(
-        this: *mut <Self::Object as impls::Object<A>>::Interface,
+        this: *mut <Self::Object as impls::Object>::Interface,
     ) -> *mut Self::Object {
         unsafe {
             let this = this as *mut Self;
@@ -620,9 +601,9 @@ impl<T: impls::Object<A>, A: object::ObjectAllocator> impls::ObjectBox<A> for We
     }
 }
 
-impl<T: impls::Object<A>, A: object::ObjectAllocator> impls::ObjectBoxWeak<A> for WeakObject<T, A>
+impl<T: impls::Object> impls::ObjectBoxWeak for WeakObject<T>
 where
-    T::Interface: details::QuIn<T, Self, A>,
+    T::Interface: details::QuIn<T, Self>,
 {
     unsafe fn AddRefWeak(this: *mut T::Interface) -> u32 {
         unsafe {
@@ -674,7 +655,7 @@ where
     }
 }
 
-impl<T: impls::Object<A>, A: object::ObjectAllocator> impls::RefCount for WeakObject<T, A> {
+impl<T: impls::Object> impls::RefCount for WeakObject<T> {
     fn AddRef(this: *const Self) -> u32 {
         unsafe { (*this).strong.fetch_add(1, Ordering::Relaxed) }
     }
@@ -690,7 +671,7 @@ impl<T: impls::Object<A>, A: object::ObjectAllocator> impls::RefCount for WeakOb
     }
 }
 
-impl<T: impls::Object<A>, A: object::ObjectAllocator> impls::WeakRefCount for WeakObject<T, A> {
+impl<T: impls::Object> impls::WeakRefCount for WeakObject<T> {
     fn AddRefWeak(this: *const Self) -> u32 {
         unsafe { (*this).weak.fetch_add(1, Ordering::Relaxed) }
     }
@@ -717,7 +698,7 @@ impl<T: impls::Object<A>, A: object::ObjectAllocator> impls::WeakRefCount for We
     }
 }
 
-impl<T: impls::Object<A>, A: object::ObjectAllocator> Deref for WeakObject<T, A> {
+impl<T: impls::Object> Deref for WeakObject<T> {
     type Target = T;
 
     fn deref(&self) -> &Self::Target {
@@ -725,27 +706,27 @@ impl<T: impls::Object<A>, A: object::ObjectAllocator> Deref for WeakObject<T, A>
     }
 }
 
-impl<T: impls::Object<A> + PartialEq, A: object::ObjectAllocator> PartialEq for WeakObject<T, A> {
+impl<T: impls::Object + PartialEq> PartialEq for WeakObject<T> {
     fn eq(&self, other: &Self) -> bool {
         (**self).eq(&**other)
     }
 }
 
-impl<T: impls::Object<A> + Eq, A: object::ObjectAllocator> Eq for WeakObject<T, A> {}
+impl<T: impls::Object + Eq> Eq for WeakObject<T> {}
 
-impl<T: impls::Object<A> + PartialOrd, A: object::ObjectAllocator> PartialOrd for WeakObject<T, A> {
+impl<T: impls::Object + PartialOrd> PartialOrd for WeakObject<T> {
     fn partial_cmp(&self, other: &Self) -> Option<core::cmp::Ordering> {
         (**self).partial_cmp(&**other)
     }
 }
 
-impl<T: impls::Object<A> + Ord, A: object::ObjectAllocator> Ord for WeakObject<T, A> {
+impl<T: impls::Object + Ord> Ord for WeakObject<T> {
     fn cmp(&self, other: &Self) -> core::cmp::Ordering {
         (**self).cmp(&**other)
     }
 }
 
-impl<T: impls::Object<A> + Hash, A: object::ObjectAllocator> Hash for WeakObject<T, A> {
+impl<T: impls::Object + Hash> Hash for WeakObject<T> {
     fn hash<H: core::hash::Hasher>(&self, state: &mut H) {
         (**self).hash(state);
     }
@@ -753,12 +734,9 @@ impl<T: impls::Object<A> + Hash, A: object::ObjectAllocator> Hash for WeakObject
 
 #[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(transparent)]
-pub struct WeakObjectPtr<
-    T: impls::Object<A>,
-    A: object::ObjectAllocator = object::DefaultObjectAllocator,
->(ComPtr<WeakObject<T, A>>);
+pub struct WeakObjectPtr<T: impls::Object>(ComPtr<WeakObject<T>>);
 
-impl<T: impls::Object<A>, A: object::ObjectAllocator> WeakObjectPtr<T, A>
+impl<T: impls::Object> WeakObjectPtr<T>
 where
     T::Interface: RefCount,
 {
@@ -771,7 +749,7 @@ where
     }
 }
 
-impl<T: impls::Object<A>, A: object::ObjectAllocator> Deref for WeakObjectPtr<T, A> {
+impl<T: impls::Object> Deref for WeakObjectPtr<T> {
     type Target = T;
 
     fn deref(&self) -> &Self::Target {
@@ -779,7 +757,7 @@ impl<T: impls::Object<A>, A: object::ObjectAllocator> Deref for WeakObjectPtr<T,
     }
 }
 
-impl<T: impls::Object<A>, A: object::ObjectAllocator> AsRef<T::Interface> for WeakObjectPtr<T, A> {
+impl<T: impls::Object> AsRef<T::Interface> for WeakObjectPtr<T> {
     fn as_ref(&self) -> &T::Interface {
         &self.0.base
     }
@@ -787,7 +765,4 @@ impl<T: impls::Object<A>, A: object::ObjectAllocator> AsRef<T::Interface> for We
 
 #[derive(Debug, Clone)]
 #[repr(transparent)]
-pub struct WeakObjectWeak<
-    T: impls::Object<A>,
-    A: object::ObjectAllocator = object::DefaultObjectAllocator,
->(ComWeak<WeakObject<T, A>>);
+pub struct WeakObjectWeak<T: impls::Object>(ComWeak<WeakObject<T>>);

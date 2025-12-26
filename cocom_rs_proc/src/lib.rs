@@ -247,12 +247,13 @@ pub fn object(attr: TokenStream, item: TokenStream) -> TokenStream {
     let parent = &attr.parent;
     let allocator = &attr.allocator;
     let ident = &item.ident;
-    let allocator = allocator.as_ref().map(|allocator| quote! {<#allocator>});
+    let allocator = allocator.as_ref().map(|allocator| quote! { #allocator }).unwrap_or_else(|| quote! { () });
     quote! {
         #item
 
-        impl impls::Object #allocator for #ident {
+        impl impls::Object for #ident {
             type Interface = #parent;
+            type Allocator = #allocator;
         }
 
         impl impls::IUnknown for #ident {}

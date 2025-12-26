@@ -60,15 +60,15 @@ pub mod details {
 
     use super::*;
 
-    pub trait Vtbl<O, A>: Interface {
+    pub trait Vtbl<O>: Interface {
         const VTBL: Self::VitualTable;
 
         fn vtbl() -> &'static Self::VitualTable;
     }
 
-    struct VT<T, V, O, A>(core::marker::PhantomData<(T, V, O, A)>);
+    struct VT<T, V, O>(core::marker::PhantomData<(T, V, O)>);
 
-    pub trait QuIn<T, O, A>: Interface {
+    pub trait QuIn<T, O>: Interface {
         unsafe fn QueryInterface(
             this: *mut T,
             guid: *const Guid,
@@ -88,13 +88,9 @@ pub mod details {
         pub f_Release: unsafe extern "C" fn(this: *const IUnknown) -> u32,
     }
 
-    impl<
-        T: impls::IUnknown + impls::Object<A>,
-        O: ObjectBox<A, Object = T>,
-        A: object::ObjectAllocator,
-    > VT<T, IUnknown, O, A>
+    impl<T: impls::IUnknown + impls::Object, O: ObjectBox<Object = T>> VT<T, IUnknown, O>
     where
-        T::Interface: details::QuIn<T, O, A>,
+        T::Interface: details::QuIn<T, O>,
     {
         pub const VTBL: VitualTable_IUnknown = VitualTable_IUnknown {
             f_QueryInterface: Self::f_QueryInterface,
@@ -117,18 +113,14 @@ pub mod details {
         }
     }
 
-    impl<
-        T: impls::IUnknown + impls::Object<A>,
-        O: ObjectBox<A, Object = T>,
-        A: object::ObjectAllocator,
-    > Vtbl<O, A> for IUnknown
+    impl<T: impls::IUnknown + impls::Object, O: ObjectBox<Object = T>> Vtbl<O> for IUnknown
     where
-        T::Interface: details::QuIn<T, O, A>,
+        T::Interface: details::QuIn<T, O>,
     {
-        const VTBL: <IUnknown as Interface>::VitualTable = VT::<T, IUnknown, O, A>::VTBL;
+        const VTBL: <IUnknown as Interface>::VitualTable = VT::<T, IUnknown, O>::VTBL;
 
         fn vtbl() -> &'static Self::VitualTable {
-            &<Self as Vtbl<O, A>>::VTBL
+            &<Self as Vtbl<O>>::VTBL
         }
     }
 
@@ -142,16 +134,12 @@ pub mod details {
         pub f_TryUpgrade: unsafe extern "C" fn(this: *const IWeak) -> bool,
     }
 
-    impl<
-        T: impls::IWeak + impls::Object<A>,
-        O: ObjectBox<A, Object = T> + ObjectBoxWeak<A>,
-        A: object::ObjectAllocator,
-    > VT<T, IWeak, O, A>
+    impl<T: impls::IWeak + impls::Object, O: ObjectBox<Object = T> + ObjectBoxWeak> VT<T, IWeak, O>
     where
-        T::Interface: details::QuIn<T, O, A>,
+        T::Interface: details::QuIn<T, O>,
     {
         pub const VTBL: VitualTable_IWeak = VitualTable_IWeak {
-            b: <IUnknown as Vtbl<O, A>>::VTBL,
+            b: <IUnknown as Vtbl<O>>::VTBL,
             f_AddRefWeak: Self::f_AddRefWeak,
             f_ReleaseWeak: Self::f_ReleaseWeak,
             f_TryUpgrade: Self::f_TryUpgrade,
@@ -168,27 +156,18 @@ pub mod details {
         }
     }
 
-    impl<
-        T: impls::IWeak + impls::Object<A>,
-        O: ObjectBox<A, Object = T> + ObjectBoxWeak<A>,
-        A: object::ObjectAllocator,
-    > Vtbl<O, A> for IWeak
+    impl<T: impls::IWeak + impls::Object, O: ObjectBox<Object = T> + ObjectBoxWeak> Vtbl<O> for IWeak
     where
-        T::Interface: details::QuIn<T, O, A>,
+        T::Interface: details::QuIn<T, O>,
     {
-        const VTBL: <IWeak as Interface>::VitualTable = VT::<T, IWeak, O, A>::VTBL;
+        const VTBL: <IWeak as Interface>::VitualTable = VT::<T, IWeak, O>::VTBL;
 
         fn vtbl() -> &'static Self::VitualTable {
-            &<Self as Vtbl<O, A>>::VTBL
+            &<Self as Vtbl<O>>::VTBL
         }
     }
 
-    impl<
-        T: impls::IUnknown + impls::Object<A>,
-        O: ObjectBox<A, Object = T>,
-        A: object::ObjectAllocator,
-    > QuIn<T, O, A> for IUnknown
-    {
+    impl<T: impls::IUnknown + impls::Object, O: ObjectBox<Object = T>> QuIn<T, O> for IUnknown {
         unsafe fn QueryInterface(
             this: *mut T,
             guid: *const Guid,
@@ -205,12 +184,7 @@ pub mod details {
         }
     }
 
-    impl<
-        T: impls::IWeak + impls::Object<A>,
-        O: ObjectBox<A, Object = T>,
-        A: object::ObjectAllocator,
-    > QuIn<T, O, A> for IWeak
-    {
+    impl<T: impls::IWeak + impls::Object, O: ObjectBox<Object = T>> QuIn<T, O> for IWeak {
         unsafe fn QueryInterface(
             this: *mut T,
             guid: *const Guid,
@@ -222,7 +196,7 @@ pub mod details {
                     O::AddRef(this as _);
                     return HResultE::Ok.into();
                 }
-                <IUnknown as QuIn<T, O, A>>::QueryInterface(this, guid, out)
+                <IUnknown as QuIn<T, O>>::QueryInterface(this, guid, out)
             }
         }
     }
@@ -378,43 +352,36 @@ pub mod impls {
 
     pub unsafe trait Inherit<T>: AsRef<T> + AsMut<T> {}
 
-    pub trait Object<A = object::DefaultObjectAllocator>
-    where
-        A: object::ObjectAllocator,
-    {
+    pub trait Object {
         type Interface: Interface + Sized;
+        type Allocator: object::ObjectAllocator + Debug;
     }
 
-    pub trait ObjectBoxNew<A = object::DefaultObjectAllocator>: ObjectBox<A>
-    where
-        A: object::ObjectAllocator,
-    {
-        fn new_with(val: Self::Object, allocator: A)
-        -> *mut <Self::Object as Object<A>>::Interface;
-        fn make_with(val: Self::Object, allocator: A) -> *mut Self;
+    pub trait ObjectBoxNew: ObjectBox {
+        fn new_with(
+            val: Self::Object,
+            allocator: <Self::Object as Object>::Allocator,
+        ) -> *mut <Self::Object as Object>::Interface;
+        fn make_with(
+            val: Self::Object,
+            allocator: <Self::Object as Object>::Allocator,
+        ) -> *mut Self;
     }
 
-    pub trait ObjectBox<A = object::DefaultObjectAllocator>
-    where
-        A: object::ObjectAllocator,
-    {
-        type Object: Object<A>;
+    pub trait ObjectBox {
+        type Object: Object;
 
-        unsafe fn GetObject(this: *mut <Self::Object as Object<A>>::Interface)
-        -> *mut Self::Object;
+        unsafe fn GetObject(this: *mut <Self::Object as Object>::Interface) -> *mut Self::Object;
 
-        unsafe fn AddRef(this: *mut <Self::Object as Object<A>>::Interface) -> u32;
-        unsafe fn Release(this: *mut <Self::Object as Object<A>>::Interface) -> u32;
+        unsafe fn AddRef(this: *mut <Self::Object as Object>::Interface) -> u32;
+        unsafe fn Release(this: *mut <Self::Object as Object>::Interface) -> u32;
     }
 
-    pub trait ObjectBoxWeak<A = object::DefaultObjectAllocator>: ObjectBox<A>
-    where
-        A: object::ObjectAllocator,
-    {
-        unsafe fn AddRefWeak(this: *mut <Self::Object as Object<A>>::Interface) -> u32;
-        unsafe fn ReleaseWeak(this: *mut <Self::Object as Object<A>>::Interface) -> u32;
-        unsafe fn TryUpgrade(this: *mut <Self::Object as Object<A>>::Interface) -> bool;
-        unsafe fn TryDowngrade(this: *mut <Self::Object as Object<A>>::Interface) -> bool;
+    pub trait ObjectBoxWeak: ObjectBox {
+        unsafe fn AddRefWeak(this: *mut <Self::Object as Object>::Interface) -> u32;
+        unsafe fn ReleaseWeak(this: *mut <Self::Object as Object>::Interface) -> u32;
+        unsafe fn TryUpgrade(this: *mut <Self::Object as Object>::Interface) -> bool;
+        unsafe fn TryDowngrade(this: *mut <Self::Object as Object>::Interface) -> bool;
     }
 
     pub trait ObjectRefCount {
