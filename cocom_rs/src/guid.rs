@@ -135,6 +135,17 @@ impl PartialEq for Guid {
     }
 }
 
+impl PartialOrd for Guid {
+    fn partial_cmp(&self, other: &Self) -> Option<core::cmp::Ordering> {
+        self.to_u128().partial_cmp(&other.to_u128())
+    }
+}
+impl Ord for Guid {
+    fn cmp(&self, other: &Self) -> core::cmp::Ordering {
+        self.to_u128().cmp(&other.to_u128())
+    }
+}
+
 impl Hash for Guid {
     #[inline(always)]
     fn hash<H: core::hash::Hasher>(&self, state: &mut H) {
