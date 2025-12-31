@@ -205,7 +205,11 @@ impl<T: impls::Object> Object<T> {
 
     pub unsafe fn FromValue(value: *mut T) -> *mut Self {
         unsafe {
-            let offset = core::mem::size_of::<T::Interface>() + core::mem::size_of::<AtomicU32>();
+            let offset = {
+                let p: *mut Self = value as _;
+                let fp: *mut ManuallyDrop<T> = &mut (*p).val;
+                fp as usize - p as usize
+            };
             let ptr = value as *mut u8;
             let ptr = ptr.sub(offset);
             ptr as _
@@ -484,8 +488,11 @@ impl<T: impls::Object> WeakObject<T> {
     #[inline(always)]
     pub unsafe fn FromValue(value: *mut T) -> *mut Self {
         unsafe {
-            let offset =
-                core::mem::size_of::<T::Interface>() + core::mem::size_of::<AtomicU32>() * 2;
+            let offset = {
+                let p: *mut Self = value as _;
+                let fp: *mut ManuallyDrop<T> = &mut (*p).val;
+                fp as usize - p as usize
+            };
             let ptr = value as *mut u8;
             let ptr = ptr.sub(offset);
             ptr as _
@@ -786,3 +793,12 @@ impl<T: impls::Object> AsRef<T::Interface> for WeakObjectPtr<T> {
 #[derive(Debug, Clone)]
 #[repr(transparent)]
 pub struct WeakObjectWeak<T: impls::Object>(ComWeak<WeakObject<T>>);
+
+impl<T: impls::Object> ObjectPtr<T> {
+    pub unsafe fn clone_this(this: &mut T) -> Self {
+        unsafe {
+            let obj = Object::FromValue(this);
+            ObjectPtr(ComPtr::new_clone(NonNull::new_unchecked(obj)))
+        }
+    }
+}
