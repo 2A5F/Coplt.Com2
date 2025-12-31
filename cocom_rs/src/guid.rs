@@ -18,6 +18,22 @@ pub struct Guid {
 }
 
 impl Guid {
+    pub const fn null() -> Self {
+        Self {
+            a: 0,
+            b: 0,
+            c: 0,
+            d: 0,
+            e: 0,
+            f: 0,
+            g: 0,
+            h: 0,
+            i: 0,
+            j: 0,
+            k: 0,
+        }
+    }
+
     pub const fn new(
         a: u32,
         b: u16,
