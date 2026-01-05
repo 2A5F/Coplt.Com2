@@ -8,6 +8,8 @@ public record RustOverride
 {
     [JsonPropertyName("Debug")]
     public bool Debug { get; set; } = true;
+    [JsonPropertyName("Copy")]
+    public bool Copy { get; set; } = true;
     [JsonPropertyName("PartialEq")]
     public bool PartialEq { get; set; } = true;
     [JsonPropertyName("PartialOrd")]
@@ -215,10 +217,11 @@ public record RustOutput : AOutput
                 var is_union = (a.Flags & StructFlags.Union) != 0;
                 sb.AppendLine();
                 sb.AppendLine($"#[repr(C)]");
-                sb.Append($"#[derive(Clone, Copy");
+                sb.Append($"#[derive(Clone");
                 if (!is_union)
                 {
                     Override.TryGetValue(name, out var ov);
+                    if (ov is null || ov.Copy) sb.Append($", Copy");
                     if (ov is null || ov.Debug) sb.Append($", Debug");
                     if (ov is null || ov.PartialEq) sb.Append($", PartialEq");
                     if (ov is null || ov.PartialOrd) sb.Append(", PartialOrd");
