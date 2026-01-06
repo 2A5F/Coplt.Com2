@@ -2,8 +2,10 @@
 using System.Collections.Frozen;
 using System.Collections.Immutable;
 using System.Text.Json.Serialization;
+using System.Text.RegularExpressions;
 using AsmResolver.DotNet;
 using AsmResolver.DotNet.Collections;
+using AsmResolver.DotNet.Serialized;
 using AsmResolver.DotNet.Signatures.Types;
 using AsmResolver.PE.DotNet.Metadata.Tables.Rows;
 using Coplt.Com2.DefineModel;
@@ -28,6 +30,7 @@ internal class SymbolDb
             { "Coplt.Com.ConstPtr`1", ComType.ConstPtr },
             { "Coplt.Com.NonNull`1", ComType.NonNull },
             { "Coplt.Com.ConstNonNull`1", ComType.ConstNonNull },
+            { "Coplt.Com.Rc`1", ComType.ComPtr },
         };
         ComTypes = com_types.ToFrozenDictionary();
 
@@ -241,6 +244,15 @@ internal class SymbolDb
                     {
                         Kind = a.Kind switch
                         {
+                            TypeKind.Unknown => DefineModel.TypeKind.Unknown,
+                            TypeKind.Interface => DefineModel.TypeKind.Interface,
+                            TypeKind.Generic => DefineModel.TypeKind.Generic,
+                            TypeKind.Struct => DefineModel.TypeKind.Struct,
+                            TypeKind.Enum => DefineModel.TypeKind.Enum,
+                            TypeKind.Ptr => DefineModel.TypeKind.Ptr,
+                            TypeKind.Ref => DefineModel.TypeKind.Ref,
+                            TypeKind.Fn => DefineModel.TypeKind.Fn,
+                            TypeKind.ComPtr => DefineModel.TypeKind.ComPtr,
                             TypeKind.Void => DefineModel.TypeKind.Void,
                             TypeKind.Bool => DefineModel.TypeKind.Bool,
                             TypeKind.Int8 => DefineModel.TypeKind.Int8,
@@ -266,7 +278,7 @@ internal class SymbolDb
                             TypeKind.Str8 => DefineModel.TypeKind.Str8,
                             TypeKind.Str16 => DefineModel.TypeKind.Str16,
                             TypeKind.StrAny => DefineModel.TypeKind.StrAny,
-                            _ => throw new ArgumentOutOfRangeException()
+                            _ => throw new ArgumentOutOfRangeException(),
                         },
                         Flags = ToComDefine(a.Flags),
                     };
@@ -475,7 +487,7 @@ internal class SymbolDb
                 Fields = [],
             });
             if (decl.Name != null!) return decl;
-            decl.Name = full_name;
+            decl.Name = TypeSymbol.TakeName(full_name);
             decl.TypeParams = type.GenericParameters.Select(a => $"{a.Name}").ToList();
             if ((type.Attributes & TypeAttributes.ExplicitLayout) != 0) decl.Flags |= StructFlags.Union;
             if (type.FindCustomAttributes("Coplt.Com", "RefOnlyAttribute").Any()) decl.Flags |= StructFlags.RefOnly;
@@ -558,6 +570,16 @@ internal class SymbolDb
                         symbol.Kind = TypeKind.Ptr;
                         symbol.TargetOrReturn = target;
                         if (com_type is ComType.ConstPtr) symbol.Flags |= TypeFlags.Const;
+                        return symbol;
+                    }
+                    if (com_type is ComType.ComPtr)
+                    {
+                        var target = ExtraType(git.TypeArguments[0]);
+                        var name = $"ComPtr<{target.FullName}>";
+                        var symbol = Symbols.GetOrAdd(name, static name => new(name));
+                        if (symbol.Kind != TypeKind.Unknown) return symbol;
+                        symbol.Kind = TypeKind.ComPtr;
+                        symbol.TargetOrReturn = target;
                         return symbol;
                     }
                 }
@@ -687,11 +709,11 @@ internal class SymbolDb
     }
 }
 
-public record TypeSymbol(string FullName)
+public partial record TypeSymbol(string FullName)
 {
     public uint Id { get; set; }
     public string FullName { get; } = FullName;
-    public string Name { get; } = FullName.Split('`').First().Split('.', '+').Last();
+    public string Name { get; } = TakeName(FullName);
     public TypeKind Kind { get; set; }
     public TypeFlags Flags { get; set; }
     public ADeclareSymbol? Declare { get; set; }
@@ -703,6 +725,23 @@ public record TypeSymbol(string FullName)
     public override string ToString() => Kind is TypeKind.Fn
         ? $"{((Flags & TypeFlags.Const) != 0 ? "const " : "")}{{ {TargetOrReturn} ({string.Join(",", GenericsOrParams)}) }}*"
         : $"{((Flags & TypeFlags.Const) != 0 ? "const " : "")}{Name}{(GenericsOrParams.IsDefaultOrEmpty ? "" : $"<{string.Join(",", GenericsOrParams)}>")}";
+
+    public static string TakeName(string FullName)
+    {
+        var last_dot = -1;
+        for (var i = 0; i < FullName.Length; i++)
+        {
+            if (FullName[i] is '+' or '<') break;
+            if (FullName[i] is '.') last_dot = i;
+        }
+        FullName = FullName[(last_dot + 1)..];
+        var first_generic = FullName.IndexOf('<');
+        if (first_generic >= 0) FullName = FullName[..first_generic];
+        return RemoveGenericNumber().Replace(FullName, "").Replace('+', '_');
+    }
+
+    [GeneratedRegex(@"`\d+")]
+    private static partial Regex RemoveGenericNumber();
 }
 
 public enum ComType
@@ -712,6 +751,7 @@ public enum ComType
     ConstPtr,
     NonNull,
     ConstNonNull,
+    ComPtr,
 }
 
 public enum TypeKind
@@ -731,6 +771,8 @@ public enum TypeKind
     Ref,
     // use Return, Params
     Fn,
+
+    ComPtr,
 
     Void,
     Bool,

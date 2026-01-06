@@ -28,7 +28,7 @@ public record RustOutput : AOutput
         sb.AppendLine("#![allow(non_camel_case_types)]");
 
         sb.AppendLine();
-        sb.AppendLine("use cocom::{Guid, HResult, HResultE, Interface, IUnknown, IWeak};");
+        sb.AppendLine("use cocom::{Guid, HResult, HResultE, Interface, IUnknown, IWeak, ComPtr};");
 
         GenInterfaces(db, sb);
         GenTypes(db, sb);
@@ -66,6 +66,10 @@ public record RustOutput : AOutput
                     ? ""
                     : $"{string.Join(", ", symbol.GenericsOrParams.Select(a => ToRustName(a, false, super)))}";
                 return $"unsafe extern \"C\" fn({arg}) -> {ToRustName(symbol.TargetOrReturn!, true, super)}";
+            }
+            case TypeKind.ComPtr:
+            {
+                return $"ComPtr<{ToRustName(symbol.TargetOrReturn!, false, super)}>";
             }
             case TypeKind.Void:
                 return is_root ? "()" : "core::ffi::c_void";
@@ -213,7 +217,7 @@ public record RustOutput : AOutput
             .Select(a =>
             {
                 var sb = new StringBuilder();
-                var name = a.Name.Split('.', '+').Last().Split('`').First();
+                var name = a.Name;
                 var is_union = (a.Flags & StructFlags.Union) != 0;
                 sb.AppendLine();
                 sb.AppendLine($"#[repr(C)]");

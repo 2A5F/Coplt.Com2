@@ -50,6 +50,8 @@ public enum TypeKind : uint
     /// <see cref="TypeDeclare.Params"/> means function arguments
     /// </summary>
     Fn,
+    
+    ComPtr,
 
     Void,
     Bool,

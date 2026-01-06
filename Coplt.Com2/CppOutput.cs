@@ -151,7 +151,7 @@ public record CppOutput : AOutput
             .Select(a =>
             {
                 var sb = new StringBuilder();
-                var name = a.Name.Split('.', '+').Last().Split('`').First();
+                var name = a.Name;
                 sb.AppendLine();
                 if (a.TypeParams.Count > 0)
                 {
@@ -224,7 +224,7 @@ public record CppOutput : AOutput
             .Select(a =>
             {
                 var sb = new StringBuilder();
-                var name = a.Name.Split('.', '+').Last().Split('`').First();
+                var name = a.Name;
                 sb.AppendLine();
                 if (a.TypeParams.Count > 0)
                 {
