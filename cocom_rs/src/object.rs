@@ -394,9 +394,31 @@ impl<T: impls::Object + Hash> Hash for Object<T> {
     }
 }
 
-#[derive(Debug, Clone, PartialEq, Eq, PartialOrd, Ord, Hash)]
+#[derive(Debug, PartialEq, Eq, PartialOrd, Ord, Hash)]
 #[repr(transparent)]
 pub struct ObjectPtr<T: impls::Object>(ComPtr<Object<T>>);
+
+impl<T: impls::Object> ObjectPtr<T> {
+    pub unsafe fn clone_this(this: &mut T) -> Self {
+        unsafe {
+            let obj = Object::FromValue(this);
+            ObjectPtr(ComPtr::new_clone(NonNull::new_unchecked(obj)))
+        }
+    }
+
+    pub unsafe fn clone_from_ptr(ptr: *mut T::Interface) -> Self {
+        unsafe { ObjectPtr(ComPtr::new_clone(NonNull::new_unchecked(ptr as _))) }
+    }
+}
+
+impl<T: impls::Object> Clone for ObjectPtr<T>
+where
+    T::Interface: RefCount,
+{
+    fn clone(&self) -> Self {
+        Self(self.0.clone())
+    }
+}
 
 impl<T: impls::Object> ObjectPtr<T>
 where
@@ -790,15 +812,15 @@ impl<T: impls::Object> AsRef<T::Interface> for WeakObjectPtr<T> {
     }
 }
 
-#[derive(Debug, Clone)]
+#[derive(Debug)]
 #[repr(transparent)]
 pub struct WeakObjectWeak<T: impls::Object>(ComWeak<WeakObject<T>>);
 
-impl<T: impls::Object> ObjectPtr<T> {
-    pub unsafe fn clone_this(this: &mut T) -> Self {
-        unsafe {
-            let obj = Object::FromValue(this);
-            ObjectPtr(ComPtr::new_clone(NonNull::new_unchecked(obj)))
-        }
+impl<T: impls::Object> Clone for WeakObjectWeak<T>
+where
+    T::Interface: RefCount,
+{
+    fn clone(&self) -> Self {
+        Self(self.0.clone())
     }
 }
