@@ -2,6 +2,7 @@ use core::{
     alloc::Layout,
     hash::Hash,
     mem::ManuallyDrop,
+    ops::DerefMut,
     ptr::{self, NonNull},
     sync::atomic::{AtomicU32, Ordering},
 };
@@ -451,6 +452,12 @@ impl<T: impls::Object> Deref for ObjectPtr<T> {
 
     fn deref(&self) -> &Self::Target {
         &*self.0.val
+    }
+}
+
+impl<T: impls::Object> DerefMut for ObjectPtr<T> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        &mut *self.0.val
     }
 }
 

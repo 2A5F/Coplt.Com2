@@ -2,7 +2,7 @@ use crate::{IUnknown, IWeak, impls};
 use core::{
     fmt::{Debug, Display},
     mem::ManuallyDrop,
-    ops::Deref,
+    ops::{Deref, DerefMut},
     ptr::NonNull,
 };
 
@@ -74,6 +74,12 @@ impl<T: impls::RefCount> Deref for ComPtr<T> {
 
     fn deref(&self) -> &Self::Target {
         unsafe { self.ptr.as_ref() }
+    }
+}
+
+impl<T: impls::RefCount> DerefMut for ComPtr<T> {
+    fn deref_mut(&mut self) -> &mut Self::Target {
+        unsafe { self.ptr.as_mut() }
     }
 }
 
