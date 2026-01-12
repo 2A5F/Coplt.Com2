@@ -26,6 +26,7 @@ public record RustOutput : AOutput
         sb.AppendLine("#![allow(unused)]");
         sb.AppendLine("#![allow(non_snake_case)]");
         sb.AppendLine("#![allow(non_camel_case_types)]");
+        sb.AppendLine("#![allow(non_upper_case_globals)]");
 
         sb.AppendLine();
         sb.AppendLine("use cocom::{Guid, HResult, HResultE, Interface, IUnknown, IWeak, ComPtr};");
@@ -189,16 +190,34 @@ public record RustOutput : AOutput
                 else
                 {
                     var value_cache = new Dictionary<string, string>();
-                    sb.AppendLine($"#[repr({underlying})]");
+                    sb.AppendLine($"#[repr(transparent)]");
                     sb.AppendLine($"#[derive(Debug, Clone, Copy, PartialEq, PartialOrd)]");
-                    sb.AppendLine($"pub enum {name} {{");
+                    sb.AppendLine($"pub struct {name}(pub {underlying});");
+                    sb.AppendLine();
+                    sb.AppendLine($"impl {name} {{");
                     foreach (var item in a.Items)
                     {
                         if (value_cache.TryAdd(item.Value, item.Name))
                         {
-                            sb.AppendLine($"    {item.Name} = {item.Value},");
+                            sb.AppendLine($"    pub const {item.Name}: Self = Self({item.Value});");
                         }
                     }
+                    sb.AppendLine($"}}");
+                    sb.AppendLine();
+                    sb.AppendLine($"impl core::fmt::Display for {name} {{");
+                    sb.AppendLine($"    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {{");
+                    sb.AppendLine($"        match *self {{");
+                    value_cache.Clear();
+                    foreach (var item in a.Items)
+                    {
+                        if (value_cache.TryAdd(item.Value, item.Name))
+                        {
+                            sb.AppendLine($"            Self::{item.Name} => f.write_str(\"{item.Name}\"),");
+                        }
+                    }
+                    sb.AppendLine($"            Self(v) => f.write_fmt(format_args!(\"{{v}}\")),");
+                    sb.AppendLine($"        }}");
+                    sb.AppendLine($"    }}");
                     sb.AppendLine($"}}");
                 }
 
@@ -257,8 +276,8 @@ public record RustOutput : AOutput
                 if (is_union)
                 {
                     sb.AppendLine();
-                    sb.AppendLine($"impl std::fmt::Debug for {name} {{");
-                    sb.AppendLine($"    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {{");
+                    sb.AppendLine($"impl core::fmt::Debug for {name} {{");
+                    sb.AppendLine($"    fn fmt(&self, f: &mut core::fmt::Formatter<'_>) -> core::fmt::Result {{");
                     sb.AppendLine($"        f.debug_struct(\"{name}\")");
                     sb.AppendLine($"            .finish_non_exhaustive()");
                     sb.AppendLine($"    }}");

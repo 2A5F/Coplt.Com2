@@ -8,9 +8,6 @@ public sealed class OpaqueAttribute : Attribute;
 [AttributeUsage(AttributeTargets.Struct)]
 public sealed class TransparentAttribute : Attribute;
 
-[AttributeUsage(AttributeTargets.Enum)]
-public sealed class NonExhaustiveAttribute : Attribute;
-
 [AttributeUsage(AttributeTargets.Struct | AttributeTargets.Method | AttributeTargets.Property)]
 public sealed class ConstAttribute(bool IsConst) : Attribute
 {
