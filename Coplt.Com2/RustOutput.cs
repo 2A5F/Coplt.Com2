@@ -222,7 +222,11 @@ public record RustOutput : AOutput
                 sb.AppendLine();
                 sb.AppendLine($"#[repr(C)]");
                 sb.Append($"#[derive(Clone");
-                if (!is_union)
+                if (is_union)
+                {
+                    sb.Append($", Copy");
+                }
+                else
                 {
                     Override.TryGetValue(name, out var ov);
                     if (ov is null || ov.Copy) sb.Append($", Copy");
@@ -250,6 +254,16 @@ public record RustOutput : AOutput
                     sb.AppendLine($"    pub {field.Name}: {ToRustName(field.Type)},");
                 }
                 sb.AppendLine($"}}");
+                if (is_union)
+                {
+                    sb.AppendLine();
+                    sb.AppendLine($"impl std::fmt::Debug for {name} {{");
+                    sb.AppendLine($"    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {{");
+                    sb.AppendLine($"        f.debug_struct(\"{name}\")");
+                    sb.AppendLine($"            .finish_non_exhaustive()");
+                    sb.AppendLine($"    }}");
+                    sb.AppendLine($"}}");
+                }
                 return sb.ToString();
             }).ToList();
         root_sb.AppendJoin("", structs);
