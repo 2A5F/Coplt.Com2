@@ -54,6 +54,10 @@ impl<T: impls::RefCount> ComPtr<T> {
     pub fn const_ptr(&self) -> *const T {
         self.ptr.as_ptr()
     }
+
+    pub unsafe fn get_mut(&self) -> &mut T {
+        unsafe { &mut *self.mut_ptr() }
+    }
 }
 
 impl<T: impls::RefCount> Drop for ComPtr<T> {

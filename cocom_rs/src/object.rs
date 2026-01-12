@@ -447,6 +447,12 @@ impl<T: impls::RefCount> ComPtr<T> {
     }
 }
 
+impl<T: impls::Object> ObjectPtr<T> {
+    pub unsafe fn get_mut(&self) -> &mut T {
+        unsafe { &mut self.0.get_mut().val }
+    }
+}
+
 impl<T: impls::Object> Deref for ObjectPtr<T> {
     type Target = T;
 
