@@ -4,13 +4,25 @@ using Coplt.Com2.Json;
 
 namespace Coplt.Com2.DefineModel;
 
+public enum Phantom
+{
+    Value,
+    Ptr,
+}
+
+public record struct TypeParamDeclare
+{
+    public string Name { get; set; }
+    public Phantom Phantom { get; set; }
+}
+
 public record struct StructDeclare
 {
     public required string Name { get; set; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public required StructFlags Flags { get; set; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
-    public ImmutableArray<string> TypeParams { get; set; }
+    public ImmutableArray<TypeParamDeclare> TypeParams { get; set; }
     public ImmutableArray<FieldDeclare> Fields { get; set; }
     /// <summary>
     /// Type index

@@ -488,7 +488,16 @@ internal class SymbolDb
             });
             if (decl.Name != null!) return decl;
             decl.Name = TypeSymbol.TakeName(full_name);
-            decl.TypeParams = type.GenericParameters.Select(a => $"{a.Name}").ToList();
+            decl.TypeParams = type.GenericParameters.Select(a =>
+            {
+                var phantom_attr = a.FindCustomAttributes("Coplt.Com", "PhantomAttribute").FirstOrDefault();
+                var phantom = (Phantom)(phantom_attr?.Signature!.FixedArguments[0].Element is int v ? v : 0);
+                return new TypeParamDeclare
+                {
+                    Name = $"{a.Name}",
+                    Phantom = phantom,
+                };
+            }).ToList();
             if ((type.Attributes & TypeAttributes.ExplicitLayout) != 0) decl.Flags |= StructFlags.Union;
             if (type.FindCustomAttributes("Coplt.Com", "RefOnlyAttribute").Any()) decl.Flags |= StructFlags.RefOnly;
             var marshal_as = type.FindCustomAttributes("Coplt.Com", "ComMarshalAsAttribute").FirstOrDefault();
@@ -742,6 +751,27 @@ public partial record TypeSymbol(string FullName)
 
     [GeneratedRegex(@"`\d+")]
     private static partial Regex RemoveGenericNumber();
+
+    public bool HasTypeParam
+    {
+        get
+        {
+            switch (Kind)
+            {
+                case TypeKind.Generic:
+                    return true;
+                case TypeKind.Struct:
+                    return GenericsOrParams.Any(static a => a.HasTypeParam);
+                case TypeKind.Ptr:
+                case TypeKind.Ref:
+                case TypeKind.ComPtr:
+                    return TargetOrReturn!.HasTypeParam;
+                case TypeKind.Fn:
+                    return TargetOrReturn!.HasTypeParam || GenericsOrParams.Any(static a => a.HasTypeParam);
+            }
+            return false;
+        }
+    }
 }
 
 public enum ComType
@@ -888,7 +918,7 @@ public enum StructFlags
 public record StructDeclareSymbol : ADeclareSymbol
 {
     public required StructFlags Flags { get; set; }
-    public required List<string> TypeParams { get; set; }
+    public required List<TypeParamDeclare> TypeParams { get; set; }
     public required List<StructField> Fields { get; set; }
     public TypeSymbol? MarshalAs { get; set; }
     public int Deep;

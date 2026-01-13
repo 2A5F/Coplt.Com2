@@ -61,3 +61,30 @@ public enum ComUnmanagedType
     F4,
     F8,
 }
+
+[AttributeUsage(AttributeTargets.Struct)]
+public sealed class ComAlignAttribute(int Align) : Attribute
+{
+    public int Align { get; } = Align;
+}
+
+public enum Phantom
+{
+    Value,
+    Ptr,
+}
+
+[AttributeUsage(AttributeTargets.GenericParameter)]
+public sealed class PhantomAttribute(Phantom Phantom) : Attribute
+{
+    public Phantom Phantom { get; } = Phantom;
+}
+
+[AttributeUsage(AttributeTargets.Struct)]
+public sealed class DynUnionAttribute<E>(
+) : Attribute where E : Enum
+{
+    public required string TagField { get; set; }
+    public required E[] Tags { get; set; }
+    public required Type[] Types { get; set; }
+}

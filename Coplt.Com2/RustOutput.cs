@@ -1,6 +1,12 @@
 ﻿using System.Text;
 using System.Text.Json.Serialization;
+using Coplt.Com2.DefineModel;
 using Coplt.Com2.Symbols;
+using EnumFlags = Coplt.Com2.Symbols.EnumFlags;
+using MethodFlags = Coplt.Com2.Symbols.MethodFlags;
+using StructFlags = Coplt.Com2.Symbols.StructFlags;
+using TypeFlags = Coplt.Com2.Symbols.TypeFlags;
+using TypeKind = Coplt.Com2.Symbols.TypeKind;
 
 namespace Coplt.Com2;
 
@@ -239,21 +245,38 @@ public record RustOutput : AOutput
                 var name = a.Name;
                 var is_union = (a.Flags & StructFlags.Union) != 0;
                 sb.AppendLine();
-                sb.AppendLine($"#[repr(C)]");
-                sb.Append($"#[derive(Clone");
-                if (is_union)
+                var field_has_type_param = false;
+                foreach (var field in a.Fields)
                 {
-                    sb.Append($", Copy");
+                    if (a.TypeParams.Count > 0 && field.Type.HasTypeParam) field_has_type_param = true;
+                }
+                var can_derive = field_has_type_param || a.TypeParams.Count == 0 || a.TypeParams.All(static a => a.Phantom is not Phantom.Ptr);
+                sb.AppendLine($"#[repr(C)]");
+                if (can_derive)
+                {
+                    sb.Append($"#[derive(Clone");
+                    if (is_union)
+                    {
+                        sb.Append($", Copy");
+                    }
+                    else
+                    {
+                        Override.TryGetValue(name, out var ov);
+                        if (ov is null || ov.Copy) sb.Append($", Copy");
+                        if (ov is null || ov.Debug) sb.Append($", Debug");
+                        if (ov is null || ov.PartialEq) sb.Append($", PartialEq");
+                        if (ov is null || ov.PartialOrd) sb.Append(", PartialOrd");
+                    }
+                    sb.AppendLine($")]");
                 }
                 else
                 {
-                    Override.TryGetValue(name, out var ov);
-                    if (ov is null || ov.Copy) sb.Append($", Copy");
-                    if (ov is null || ov.Debug) sb.Append($", Debug");
-                    if (ov is null || ov.PartialEq) sb.Append($", PartialEq");
-                    if (ov is null || ov.PartialOrd) sb.Append(", PartialOrd");
+                    if (!is_union)
+                    {
+                        Override.TryGetValue(name, out var ov);
+                        if (ov is null || ov.Debug) sb.AppendLine($"#[derive(Debug)]");
+                    }
                 }
-                sb.AppendLine($")]");
                 sb.Append($"pub {(is_union ? "union" : "struct")} {name}");
                 if (a.TypeParams.Count > 0)
                 {
@@ -263,7 +286,7 @@ public record RustOutput : AOutput
                     {
                         var i = inc++;
                         if (i != 0) sb.Append(", ");
-                        sb.Append($"T{i} /* {param} */");
+                        sb.Append($"T{i} /* {param.Name} */");
                     }
                     sb.Append($">");
                 }
@@ -271,6 +294,17 @@ public record RustOutput : AOutput
                 foreach (var field in a.Fields)
                 {
                     sb.AppendLine($"    pub {field.Name}: {ToRustName(field.Type)},");
+                }
+                if (a.TypeParams.Count > 0 && !field_has_type_param)
+                {
+                    sb.Append($"    pub _p: core::marker::PhantomData<(");
+                    var inc = 0;
+                    foreach (var param in a.TypeParams)
+                    {
+                        var i = inc++;
+                        sb.Append($"*mut T{i} /* {param.Name} */,");
+                    }
+                    sb.AppendLine($")>,");
                 }
                 sb.AppendLine($"}}");
                 if (is_union)
@@ -282,6 +316,65 @@ public record RustOutput : AOutput
                     sb.AppendLine($"            .finish_non_exhaustive()");
                     sb.AppendLine($"    }}");
                     sb.AppendLine($"}}");
+                }
+                if (!can_derive)
+                {
+                    Override.TryGetValue(name, out var ov);
+                    var copy = ov is null || ov.Copy;
+
+                    if (copy)
+                    {
+                        string GenImplGeneric()
+                        {
+                            var sb = new StringBuilder();
+                            sb.Append($"<");
+                            var inc = 0;
+                            foreach (var param in a.TypeParams)
+                            {
+                                var i = inc++;
+                                if (i != 0) sb.Append(", ");
+                                sb.Append($"T{i} /* {param.Name} */");
+                            }
+                            sb.Append($">");
+                            return sb.ToString();
+                        }
+
+                        var generic = GenImplGeneric();
+
+                        sb.AppendLine();
+                        sb.AppendLine($"impl{generic} core::marker::Copy for {name}{generic} {{}}");
+                        sb.AppendLine($"impl{generic} core::clone::Clone for {name}{generic} {{");
+                        sb.AppendLine($"    fn clone(&self) -> Self {{");
+                        sb.AppendLine($"        *self");
+                        sb.AppendLine($"    }}");
+                        sb.AppendLine($"}}");
+
+                        sb.AppendLine();
+                        sb.AppendLine($"impl{generic} core::cmp::PartialEq for {name}{generic} {{");
+                        sb.AppendLine($"    fn eq(&self, other: &Self) -> bool {{");
+                        var first = true;
+                        foreach (var field in a.Fields)
+                        {
+                            sb.Append($"        ");
+                            if (first) first = false;
+                            else sb.Append(" && ");
+                            sb.Append($"self.{field.Name} == other.{field.Name}");
+                            sb.AppendLine();
+                        }
+                        sb.AppendLine($"    }}");
+                        sb.AppendLine($"}}");
+
+                        sb.AppendLine();
+                        sb.AppendLine($"impl{generic} core::cmp::PartialOrd for {name}{generic} {{");
+                        sb.AppendLine($"    fn partial_cmp(&self, other: &Self) -> Option<core::cmp::Ordering> {{");
+                        foreach (var field in a.Fields)
+                        {
+                            sb.AppendLine($"        match self.{field.Name}.partial_cmp(&other.{field.Name})? {{ core::cmp::Ordering::Equal => (), ord => return Some(ord) }}");
+                            sb.AppendLine($"        Some(core::cmp::Ordering::Equal)");
+                        }
+                        sb.AppendLine($"    }}");
+                        sb.AppendLine($"}}");
+                    }
                 }
                 return sb.ToString();
             }).ToList();

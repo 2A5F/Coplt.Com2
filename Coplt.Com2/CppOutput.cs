@@ -161,7 +161,7 @@ public record CppOutput : AOutput
                     {
                         var i = inc++;
                         if (i != 0) sb.Append(", ");
-                        sb.Append($"class T{i} /* {param} */");
+                        sb.Append($"class T{i} /* {param.Name} */");
                     }
                     sb.AppendLine($">");
                 }
@@ -234,7 +234,7 @@ public record CppOutput : AOutput
                     {
                         var i = inc++;
                         if (i != 0) sb.Append(", ");
-                        sb.Append($"class T{i} /* {param} */");
+                        sb.Append($"class T{i} /* {param.Name} */");
                     }
                     sb.AppendLine($">");
                 }
