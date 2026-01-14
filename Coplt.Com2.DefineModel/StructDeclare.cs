@@ -4,21 +4,25 @@ using Coplt.Com2.Json;
 
 namespace Coplt.Com2.DefineModel;
 
+[JsonConverter(typeof(SnakeCaseLower_JsonStringEnumConverter1<Phantom>))]
 public enum Phantom
 {
-    Value,
+    None,
     Ptr,
 }
 
 public record struct TypeParamDeclare
 {
     public string Name { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public Phantom Phantom { get; set; }
 }
 
 public record struct StructDeclare
 {
     public required string Name { get; set; }
+    [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
+    public required int Align { get; set; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]
     public required StructFlags Flags { get; set; }
     [JsonIgnore(Condition = JsonIgnoreCondition.WhenWritingDefault)]

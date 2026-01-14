@@ -70,7 +70,7 @@ public sealed class ComAlignAttribute(int Align) : Attribute
 
 public enum Phantom
 {
-    Value,
+    None,
     Ptr,
 }
 
@@ -78,13 +78,4 @@ public enum Phantom
 public sealed class PhantomAttribute(Phantom Phantom) : Attribute
 {
     public Phantom Phantom { get; } = Phantom;
-}
-
-[AttributeUsage(AttributeTargets.Struct)]
-public sealed class DynUnionAttribute<E>(
-) : Attribute where E : Enum
-{
-    public required string TagField { get; set; }
-    public required E[] Tags { get; set; }
-    public required Type[] Types { get; set; }
 }

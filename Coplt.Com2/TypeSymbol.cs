@@ -293,6 +293,7 @@ internal class SymbolDb
             .Select(a => new StructDeclare
             {
                 Name = a.Name.Split('`').First().Split('.', '+').Last(),
+                Align = a.Align,
                 Flags = ToComDefine(a.Flags),
                 TypeParams = a.TypeParams.Count == 0 ? default : [..a.TypeParams],
                 Fields =
@@ -500,6 +501,8 @@ internal class SymbolDb
             }).ToList();
             if ((type.Attributes & TypeAttributes.ExplicitLayout) != 0) decl.Flags |= StructFlags.Union;
             if (type.FindCustomAttributes("Coplt.Com", "RefOnlyAttribute").Any()) decl.Flags |= StructFlags.RefOnly;
+            var align_attr = type.FindCustomAttributes("Coplt.Com", "ComAlignAttribute").FirstOrDefault();
+            decl.Align = align_attr?.Signature!.FixedArguments[0].Element is int v ? v : 0;
             var marshal_as = type.FindCustomAttributes("Coplt.Com", "ComMarshalAsAttribute").FirstOrDefault();
             if (marshal_as != null)
             {
@@ -761,13 +764,16 @@ public partial record TypeSymbol(string FullName)
                 case TypeKind.Generic:
                     return true;
                 case TypeKind.Struct:
+                    if (GenericsOrParams.IsDefaultOrEmpty) return false;
                     return GenericsOrParams.Any(static a => a.HasTypeParam);
                 case TypeKind.Ptr:
                 case TypeKind.Ref:
                 case TypeKind.ComPtr:
                     return TargetOrReturn!.HasTypeParam;
                 case TypeKind.Fn:
-                    return TargetOrReturn!.HasTypeParam || GenericsOrParams.Any(static a => a.HasTypeParam);
+                    if (TargetOrReturn!.HasTypeParam) return true;
+                    if (GenericsOrParams.IsDefaultOrEmpty) return false;
+                    return GenericsOrParams.Any(static a => a.HasTypeParam);
             }
             return false;
         }
@@ -921,6 +927,7 @@ public record StructDeclareSymbol : ADeclareSymbol
     public required List<TypeParamDeclare> TypeParams { get; set; }
     public required List<StructField> Fields { get; set; }
     public TypeSymbol? MarshalAs { get; set; }
+    public int Align { get; set; }
     public int Deep;
 }
 

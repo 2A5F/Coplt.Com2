@@ -251,7 +251,8 @@ public record RustOutput : AOutput
                     if (a.TypeParams.Count > 0 && field.Type.HasTypeParam) field_has_type_param = true;
                 }
                 var can_derive = field_has_type_param || a.TypeParams.Count == 0 || a.TypeParams.All(static a => a.Phantom is not Phantom.Ptr);
-                sb.AppendLine($"#[repr(C)]");
+                var align = a.Align > 0 ? $", align({a.Align})" : "";
+                sb.AppendLine($"#[repr(C{align})]");
                 if (can_derive)
                 {
                     sb.Append($"#[derive(Clone");

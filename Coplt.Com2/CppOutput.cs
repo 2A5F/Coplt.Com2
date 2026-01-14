@@ -238,7 +238,9 @@ public record CppOutput : AOutput
                     }
                     sb.AppendLine($">");
                 }
-                sb.AppendLine($"{space}{((a.Flags & StructFlags.Union) != 0 ? "union" : "struct")} {name}");
+                sb.Append($"{space}{((a.Flags & StructFlags.Union) != 0 ? "union" : "struct")} ");
+                if (a.Align > 0) sb.AppendLine($"alignas({a.Align}) ");
+                sb.AppendLine($"{name}");
                 sb.AppendLine($"{space}{{");
                 foreach (var field in a.Fields)
                 {
