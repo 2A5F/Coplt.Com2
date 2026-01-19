@@ -371,8 +371,8 @@ public record RustOutput : AOutput
                         foreach (var field in a.Fields)
                         {
                             sb.AppendLine($"        match self.{field.Name}.partial_cmp(&other.{field.Name})? {{ core::cmp::Ordering::Equal => (), ord => return Some(ord) }}");
-                            sb.AppendLine($"        Some(core::cmp::Ordering::Equal)");
                         }
+                        sb.AppendLine($"        Some(core::cmp::Ordering::Equal)");
                         sb.AppendLine($"    }}");
                         sb.AppendLine($"}}");
                     }
